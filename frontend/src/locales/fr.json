@@ -1,0 +1,39 @@
+{
+  "appName": "Plateforme d'apprentissage adaptatif IA",
+  "login": {
+    "welcomeBack": "Bon retour",
+    "signInToContinue": "Connectez-vous pour continuer",
+    "email": "E-mail",
+    "password": "Mot de passe",
+    "signin": "Se connecter",
+    "signingIn": "Connexion en cours...",
+    "placeholders": {
+      "email": "vous@exemple.com",
+      "password": "••••••••"
+    },
+    "errors": {
+      "cannotLogin": "Connexion impossible. Vérifiez vos identifiants et la connexion au backend."
+    }
+  },
+  "admin": {
+    "students": "Étudiants",
+    "teachers": "Enseignants",
+    "createStudent": "Créer l'étudiant",
+    "updateStudent": "Mettre à jour l'étudiant",
+    "createTeacher": "Créer l'enseignant",
+    "updateTeacher": "Mettre à jour l'enseignant",
+    "uploadPdf": "Envoyer et ingérer",
+    "generateResource": "Générer une ressource",
+    "noQuestions": "Aucune question n'a été renvoyée dans la charge utile.",
+    "selectPdfFirst": "Sélectionnez un PDF avant de l'envoyer.",
+    "invalidJsonContext": "Le contexte supplémentaire doit être un objet JSON."
+  },
+  "common": {
+    "actions": "Actions",
+    "cancel": "Annuler",
+    "create": "Créer",
+    "edit": "Modifier",
+    "send": "Envoyer",
+    "loading": "Chargement..."
+  }
+}
