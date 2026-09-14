@@ -5,6 +5,7 @@ import type {
   AiGenerationRequest,
   AdminChapter,
   AdminCourse,
+  AdminCourseLesson,
   AdminLesson,
   AdminStudent,
   AdminTeacher,
@@ -138,6 +139,9 @@ export const adminApi = {
   },
   listLessons(chapterId: number) {
     return api.get<AdminLesson[]>(`/admin/chapters/${chapterId}/lessons`).then((response: AxiosResponse<AdminLesson[]>) => response.data);
+  },
+  listCourseLessons(courseId: number) {
+    return api.get<AdminCourseLesson[]>(`/admin/courses/${courseId}/lessons`).then((response: AxiosResponse<AdminCourseLesson[]>) => response.data);
   },
 };
 

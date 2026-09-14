@@ -109,17 +109,20 @@ class GroqChatClient:
                 "pass_mark": 50,
             }
         elif "quiz" in prompt.lower():
+            count_match = re.search(r"quiz de (\d+) question", prompt.lower())
+            count = int(count_match.group(1)) if count_match else 1
             payload = {
                 "title": title,
                 "content": "Un quiz local généré à partir du PDF ingéré.",
                 "questions": [
                     {
-                        "question": "Quel sujet a été introduit dans le PDF ?",
+                        "question": f"Question de secours {index + 1} : quel sujet a été introduit dans le PDF ?",
                         "type": "multiple_choice",
                         "options": ["Sujet A", "Sujet B", "Sujet C", "Sujet D"],
                         "answer": "Sujet A",
                         "explanation": "Question de quiz de secours.",
                     }
+                    for index in range(count)
                 ],
             }
         else:
@@ -203,28 +206,40 @@ class Worker:
             return "\n\n".join(sections)
         return str(content or payload.get("title", ""))
 
-    async def _resolve_chapter_id(self, chapter_id: int, request: GenerationRequest) -> int:
-        chapter = await self.chapter_repository.get_by_id(chapter_id)
-        if chapter is not None:
-            course = await self.course_repository.get_by_id(chapter.course_id, organization_id=self.organization_id)
-            if course is None:
-                raise RuntimeError("Chapter does not belong to this organization")
-            return chapter.id
+    async def _resolve_chapter_for_course(
+        self, course_id: int | None, course_title: str | None, level: int, request: GenerationRequest
+    ) -> int:
+        """Find-or-create the (course, level) pairing a lesson belongs to.
 
-        course = await self.course_repository.create(
-            DomainCourse(
-                id=None,
-                title=f"{request.subject} Adaptive Course",
-                subject=request.subject,
-                organization_id=self.organization_id,
-            ),
-        )
+        The admin-facing model only has "Matière" (subject) and "Cours"
+        (course); chapters exist purely as the internal bookkeeping unit
+        tying a course's "Niveau" to the leveling engine's chapter.order,
+        so they're never surfaced or chosen directly.
+        """
+        if course_id is not None:
+            course = await self.course_repository.get_by_id(course_id, organization_id=self.organization_id)
+            if course is None:
+                raise RuntimeError("Course does not belong to this organization")
+        else:
+            course = await self.course_repository.create(
+                DomainCourse(
+                    id=None,
+                    title=course_title or f"{request.subject} - Cours",
+                    subject=request.subject,
+                    organization_id=self.organization_id,
+                ),
+            )
+
+        existing_chapter = await self.chapter_repository.get_by_course_and_order(course.id, level)
+        if existing_chapter is not None:
+            return existing_chapter.id
+
         created_chapter = await self.chapter_repository.create(
             DomainChapter(
                 id=None,
                 course_id=course.id,
-                title=request.title or f"{request.subject} Chapter",
-                order=1,
+                title=f"Niveau {level}",
+                order=level,
             ),
         )
         return created_chapter.id
@@ -245,9 +260,9 @@ class Worker:
         self.vector_store.add_chunks(chunks)
         return chunks
 
-    async def generate_lesson(self, request: GenerationRequest, chapter_id: int) -> int:
+    async def generate_lesson(self, request: GenerationRequest, course_id: int | None, course_title: str | None) -> int:
         content = self.lesson_generator.generate(request)
-        resolved_chapter_id = await self._resolve_chapter_id(chapter_id, request)
+        resolved_chapter_id = await self._resolve_chapter_for_course(course_id, course_title, request.level, request)
         lesson_content = self._format_lesson_content(content.payload)
         lesson = await self.lesson_repository.create(
             DomainLesson(

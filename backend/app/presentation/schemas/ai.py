@@ -20,9 +20,11 @@ class GenerationRequest(BaseModel):
     subject: str = Field(min_length=1, max_length=255)
     level: int = Field(ge=1)
     course_id: int | None = None
+    course_title: str | None = Field(default=None, max_length=255)
     chapter_id: int | None = None
     lesson_id: int | None = None
     student_id: int | None = None
+    question_count: int | None = Field(default=None, ge=1, le=50)
     instruction: str = Field(default="")
     extra_context: dict[str, Any] = Field(default_factory=dict)
     locale: str | None = None

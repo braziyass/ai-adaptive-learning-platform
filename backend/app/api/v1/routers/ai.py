@@ -89,11 +89,15 @@ async def generate_artifact(
 
     try:
         if artifact_type == "lesson":
-            if payload.chapter_id is None:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="chapter_id is required for lesson generation")
+            if payload.course_id is None and not payload.course_title:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Either course_id (an existing course) or course_title (to create one) is required for lesson generation",
+                )
             artifact_id = await worker.generate_lesson(
                 request=request,
-                chapter_id=payload.chapter_id,
+                course_id=payload.course_id,
+                course_title=payload.course_title,
             )
         elif artifact_type == "quiz":
             if payload.lesson_id is None:

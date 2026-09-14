@@ -10,6 +10,7 @@ export const queryKeys = {
   adminCourses: ["admin", "courses"] as const,
   adminChapters: (courseId: number | null) => ["admin", "courses", courseId, "chapters"] as const,
   adminLessons: (chapterId: number | null) => ["admin", "chapters", chapterId, "lessons"] as const,
+  adminCourseLessons: (courseId: number | null) => ["admin", "courses", courseId, "lessons"] as const,
   aiPdfIngestion: ["ai", "pdf-ingestion"] as const,
   aiGeneration: ["ai", "generation"] as const,
   studentProfile: ["student", "profile"] as const,
@@ -76,6 +77,14 @@ export function useAdminLessonsQuery(chapterId: number | null) {
     queryKey: queryKeys.adminLessons(chapterId),
     queryFn: () => adminApi.listLessons(chapterId as number),
     enabled: chapterId !== null,
+  });
+}
+
+export function useAdminCourseLessonsQuery(courseId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.adminCourseLessons(courseId),
+    queryFn: () => adminApi.listCourseLessons(courseId as number),
+    enabled: courseId !== null,
   });
 }
 

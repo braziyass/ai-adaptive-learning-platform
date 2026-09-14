@@ -29,9 +29,11 @@ class GenerationRequest:
     subject: str
     level: int
     course_id: Optional[int] = None
+    course_title: Optional[str] = None
     chapter_id: Optional[int] = None
     lesson_id: Optional[int] = None
     student_id: Optional[int] = None
+    question_count: Optional[int] = None
     instruction: str = ""
     extra_context: dict[str, Any] = field(default_factory=dict)
     locale: Optional[str] = None

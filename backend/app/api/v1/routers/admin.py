@@ -19,7 +19,7 @@ from app.presentation.schemas.admin_teachers import TeacherCreateRequest, Teache
 from app.presentation.schemas.audit import AuditLogResponse
 from app.presentation.schemas.chapters import ChapterResponse
 from app.presentation.schemas.courses import CourseResponse
-from app.presentation.schemas.lessons import LessonResponse
+from app.presentation.schemas.lessons import CourseLessonResponse, LessonResponse
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(get_current_admin)])
 
@@ -155,5 +155,13 @@ async def list_chapters(course_id: int, service: CurriculumBrowseService = Depen
 async def list_lessons(chapter_id: int, service: CurriculumBrowseService = Depends(get_curriculum_browse_service)):
     try:
         return await service.list_lessons(chapter_id)
+    except CurriculumNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.get("/courses/{course_id}/lessons", response_model=list[CourseLessonResponse])
+async def list_course_lessons(course_id: int, service: CurriculumBrowseService = Depends(get_curriculum_browse_service)):
+    try:
+        return await service.list_lessons_for_course(course_id)
     except CurriculumNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))

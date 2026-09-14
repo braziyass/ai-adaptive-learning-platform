@@ -176,6 +176,12 @@ export interface AdminLesson {
   content: string;
 }
 
+export interface AdminCourseLesson {
+  id: number;
+  title: string;
+  level: number;
+}
+
 export interface PdfIngestionResponse {
   source_document: string;
   chunk_count: number;
@@ -187,9 +193,11 @@ export interface AiGenerationRequest {
   subject: string;
   level: number;
   course_id?: number | null;
+  course_title?: string | null;
   chapter_id?: number | null;
   lesson_id?: number | null;
   student_id?: number | null;
+  question_count?: number | null;
   instruction?: string;
   extra_context?: Record<string, unknown>;
   locale?: string;

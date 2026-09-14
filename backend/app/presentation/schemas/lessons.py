@@ -16,3 +16,11 @@ class LessonResponse(BaseModel):
     chapter_id: int
     title: str
     content: str
+
+
+class CourseLessonResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    title: str
+    level: int

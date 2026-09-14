@@ -12,10 +12,13 @@ class PromptBuilder:
         )
 
     def build_quiz_prompt(self, request: GenerationRequest, chunks: list[RetrievedChunk]) -> str:
+        count = request.question_count or 5
         return self._build_prompt(
             request,
             chunks,
-            "Générez un quiz en JSON avec les clés : title, questions. Chaque question doit inclure question, type, options, answer, explanation. Répondez en français.",
+            f"Générez un quiz de {count} question(s) en JSON avec les clés : title, questions. "
+            f"Le tableau questions doit contenir exactement {count} question(s). "
+            "Chaque question doit inclure question, type, options, answer, explanation. Répondez en français.",
         )
 
     def build_placement_test_prompt(self, request: GenerationRequest, chunks: list[RetrievedChunk]) -> str:

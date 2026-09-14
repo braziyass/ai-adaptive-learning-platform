@@ -35,6 +35,14 @@ class ChapterRepositoryImpl(BaseRepository[ChapterModel]):
         orms = result.scalars().all()
         return [DomainChapter(id=o.id, course_id=o.course_id, title=o.title, order=o.order) for o in orms]
 
+    async def get_by_course_and_order(self, course_id: int, order: int) -> Optional[DomainChapter]:
+        stmt = select(ChapterModel).where(ChapterModel.course_id == course_id, ChapterModel.order == order)
+        result = await self.session.execute(stmt)
+        orm = result.scalars().first()
+        if orm is None:
+            return None
+        return DomainChapter(id=orm.id, course_id=orm.course_id, title=orm.title, order=orm.order)
+
     async def update(self, chapter: DomainChapter) -> DomainChapter:
         orm = await self.session.get(ChapterModel, chapter.id)
         if orm is None:
