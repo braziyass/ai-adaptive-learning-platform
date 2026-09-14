@@ -11,4 +11,10 @@ class JSONParser:
         cleaned = re.sub(r"^```(?:json)?", "", cleaned)
         cleaned = re.sub(r"```$", "", cleaned)
         cleaned = cleaned.strip()
-        return json.loads(cleaned)
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                "The AI model's response was not valid JSON (it may have been cut off). "
+                "Try again, or request fewer questions."
+            ) from exc

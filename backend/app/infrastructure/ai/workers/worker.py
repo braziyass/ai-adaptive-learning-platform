@@ -66,8 +66,21 @@ class GroqChatClient:
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.2,
+                # Without an explicit cap, long generations (e.g. a 40-question
+                # placement test) can hit the provider's default limit and get
+                # cut off mid-response, producing truncated/invalid JSON. Asking
+                # for more than the model supports gets a clear API error rather
+                # than a silent truncation, so err on the generous side.
+                max_tokens=16384,
             )
-            return response.choices[0].message.content or "{}"
+            content = response.choices[0].message.content or "{}"
+            finish_reason = response.choices[0].finish_reason
+            if finish_reason == "length":
+                raise RuntimeError(
+                    "Groq cut off the response before it finished (hit the token limit). "
+                    "Try requesting fewer questions."
+                )
+            return content
         except Exception as exc:
             if self.allow_fallback:
                 return self._fallback_response(prompt)
