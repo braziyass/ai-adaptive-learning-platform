@@ -162,3 +162,4 @@ app/presentation/schemas/students.py
 app/presentation/schemas/teacher_module.py
 app/presentation/schemas/teachers.py
 app/presentation/schemas/users.py
+tests/test_ai_config.py
