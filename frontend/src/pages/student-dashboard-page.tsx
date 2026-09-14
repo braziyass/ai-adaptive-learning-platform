@@ -1,4 +1,4 @@
-import { BookOpen, ClipboardCheck, Trophy } from "lucide-react";
+import { BookOpen, ClipboardCheck, Star, Trophy } from "lucide-react";
 import type { ComponentType } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -24,8 +24,9 @@ export function StudentDashboardPage() {
     <div className="space-y-8">
       <PageHeader eyebrow="Étudiant" title={`Bienvenue, ${profileQuery.data?.first_name ?? "apprenant"}`} description="Suivez votre niveau, vos leçons débloquées, l'historique des quiz et les résultats de validation au même endroit." />
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <StatCard title="Niveau actuel" value={String(levelQuery.data?.current_level ?? profileQuery.data?.current_level ?? 0)} description="Votre niveau attribué à partir des résultats du test de positionnement." />
+        <StatCard title="Points" value={String(profileQuery.data?.points ?? 0)} description="Points gagnés grâce aux quiz et tests de validation." />
         <StatCard title="Achèvement" value={formatPercent(completionRate)} description="Part des leçons marquées comme terminées dans le programme actuel." />
         <StatCard title="Leçons débloquées" value={String(lessonsQuery.data?.length ?? 0)} description="Leçons actuellement disponibles à étudier." />
         <StatCard title="Résultats de validation" value={String(validationQuery.data?.length ?? 0)} description="Tentatives de test de validation renvoyées par l'API." />
@@ -73,10 +74,11 @@ export function StudentDashboardPage() {
         <Card>
           <CardHeader><CardTitle>Statistiques</CardTitle><CardDescription>Accès rapide aux indicateurs de quiz et de validation.</CardDescription></CardHeader>
           <CardContent className="space-y-4">
+            <MetricLine icon={Star} label="Points" value={String(profileQuery.data?.points ?? 0)} />
             <MetricLine icon={ClipboardCheck} label="Quiz terminés" value={String(quizzesQuery.data?.length ?? 0)} />
             <MetricLine icon={Trophy} label="Leçons terminées" value={String(completedCount)} />
             <MetricLine icon={BookOpen} label="Leçons débloquées" value={String(lessonsQuery.data?.length ?? 0)} />
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">Les résultats de validation sont disponibles dans la page dédiée Test de validation et sur ce tableau de bord.</div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">Réussissez le test de validation de votre niveau (score ≥ 80%) pour débloquer le niveau suivant.</div>
           </CardContent>
         </Card>
       </div>

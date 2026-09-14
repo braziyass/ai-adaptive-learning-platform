@@ -6,6 +6,7 @@ export interface AuthSession {
   tokenType: "bearer";
   role: Role;
   userId: number;
+  orgId?: number;
   expiresAt?: string;
 }
 
@@ -13,6 +14,7 @@ type JwtPayload = {
   sub?: string;
   exp?: number;
   role?: Role;
+  org_id?: number;
 };
 
 const STORAGE_KEY = "aalp.auth";
@@ -113,6 +115,7 @@ export function createSessionFromTokens(accessToken: string, refreshToken: strin
     tokenType: "bearer",
     role,
     userId,
+    orgId: payload?.org_id,
     expiresAt,
   };
 }

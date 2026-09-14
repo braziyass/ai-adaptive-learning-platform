@@ -14,6 +14,7 @@ class GeneratedArtifact:
     level: int
     payload: dict[str, Any]
     source_chunks: list[dict[str, Any]] = field(default_factory=list)
+    organization_id: Optional[int] = None
     course_id: Optional[int] = None
     chapter_id: Optional[int] = None
     lesson_id: Optional[int] = None

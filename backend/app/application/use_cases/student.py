@@ -4,11 +4,14 @@ from typing import Sequence
 
 from app.application.dtos.student_module import (
     CompletedQuizDTO,
+    PlacementTestDTO,
+    PlacementTestSubmissionResultDTO,
     StudentCurrentLevelDTO,
     StudentProfileDTO,
     StudentProgressItemDTO,
     UnlockedLessonDTO,
     ValidationTestResultDTO,
+    ValidationTestSubmissionResultDTO,
     AvailableQuizDTO,
     QuizSubmissionResultDTO,
 )
@@ -43,3 +46,15 @@ class StudentModuleUseCase:
 
     async def submit_quiz(self, current_user: DomainUser, quiz_id: int, answers: list[dict]) -> QuizSubmissionResultDTO:
         return await self.service.submit_quiz(current_user, quiz_id, answers)
+
+    async def get_available_validation_tests(self, current_user: DomainUser) -> Sequence[AvailableQuizDTO]:
+        return await self.service.get_available_validation_tests(current_user)
+
+    async def submit_validation_test(self, current_user: DomainUser, quiz_id: int, answers: list[dict]) -> ValidationTestSubmissionResultDTO:
+        return await self.service.submit_validation_test(current_user, quiz_id, answers)
+
+    async def get_placement_test(self, current_user: DomainUser) -> PlacementTestDTO:
+        return await self.service.get_placement_test(current_user)
+
+    async def submit_placement_test(self, current_user: DomainUser, answers: list[dict]) -> PlacementTestSubmissionResultDTO:
+        return await self.service.submit_placement_test(current_user, answers)

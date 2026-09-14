@@ -10,7 +10,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/common/page-header";
 import { StatCard } from "@/components/common/stat-card";
-import { useAdminStudentsQuery, useAdminTeachersQuery, useCreateStudentMutation, useCreateTeacherMutation, useDeleteStudentMutation, useDeleteTeacherMutation, useGenerateArtifactMutation, useUpdateStudentMutation, useUpdateTeacherMutation, useUploadPdfMutation } from "@/lib/query-hooks";
+import {
+  useAdminChaptersQuery,
+  useAdminCoursesQuery,
+  useAdminLessonsQuery,
+  useAdminStudentsQuery,
+  useAdminTeachersQuery,
+  useCreateStudentMutation,
+  useCreateTeacherMutation,
+  useDeleteStudentMutation,
+  useDeleteTeacherMutation,
+  useGenerateArtifactMutation,
+  useUpdateStudentMutation,
+  useUpdateTeacherMutation,
+  useUploadPdfMutation,
+} from "@/lib/query-hooks";
 import type { GeneratedArtifactResponse, PdfIngestionResponse, StudentFormValues } from "@/types/api";
 
 const emptyStudent: StudentFormValues = {
@@ -52,14 +66,21 @@ export function AdminDashboardPage() {
   const [generationTitle, setGenerationTitle] = useState("Test de positionnement adaptatif");
   const [generationSubject, setGenerationSubject] = useState("Anglais");
   const [generationLevel, setGenerationLevel] = useState("1");
-  const [generationCourseId, setGenerationCourseId] = useState("");
-  const [generationChapterId, setGenerationChapterId] = useState("");
-  const [generationLessonId, setGenerationLessonId] = useState("");
+  const [generationCourseId, setGenerationCourseId] = useState<number | null>(null);
+  const [generationChapterId, setGenerationChapterId] = useState<number | null>(null);
+  const [generationLessonId, setGenerationLessonId] = useState<number | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [generationStudentId, setGenerationStudentId] = useState("");
   const [generationInstruction, setGenerationInstruction] = useState("");
   const [generationContext, setGenerationContext] = useState("{}");
   const [generatedArtifact, setGeneratedArtifact] = useState<GeneratedArtifactResponse | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
+
+  const coursesQuery = useAdminCoursesQuery();
+  const chaptersQuery = useAdminChaptersQuery(generationCourseId);
+  const lessonsQuery = useAdminLessonsQuery(generationChapterId);
+  const needsChapter = artifactType === "lesson";
+  const needsLesson = artifactType === "quiz";
 
   const studentCount = studentsQuery.data?.length ?? 0;
   const teacherCount = teachersQuery.data?.length ?? 0;
@@ -398,6 +419,15 @@ export function AdminDashboardPage() {
                   }
                 }
 
+                if (needsChapter && generationCourseId === null) {
+                  setGenerationError("Sélectionnez un cours (ou créez-en un nouveau) pour générer une leçon.");
+                  return;
+                }
+                if (needsLesson && generationLessonId === null) {
+                  setGenerationError("Sélectionnez une leçon existante pour générer un quiz.");
+                  return;
+                }
+
                 try {
                   const result = await generateArtifact.mutateAsync({
                     artifactType,
@@ -405,10 +435,12 @@ export function AdminDashboardPage() {
                       title: generationTitle,
                       subject: generationSubject,
                       level: Number(generationLevel),
-                      course_id: parseOptionalNumber(generationCourseId),
-                      chapter_id: parseOptionalNumber(generationChapterId),
-                      lesson_id: parseOptionalNumber(generationLessonId),
-                      student_id: parseOptionalNumber(generationStudentId),
+                      course_id: generationCourseId,
+                      // 0 is never a real chapter id; the backend creates a fresh chapter
+                      // (and course, if needed) when it doesn't resolve to an existing one.
+                      chapter_id: needsChapter ? generationChapterId ?? 0 : null,
+                      lesson_id: needsLesson ? generationLessonId : null,
+                      student_id: showAdvanced ? parseOptionalNumber(generationStudentId) : null,
                       instruction: generationInstruction.trim() || undefined,
                       extra_context: Object.keys(parsedContext).length > 0 ? parsedContext : undefined,
                       locale: "fr",
@@ -427,7 +459,12 @@ export function AdminDashboardPage() {
                   <select
                     id="artifact-type"
                     value={artifactType}
-                    onChange={(event) => setArtifactType(event.target.value as GeneratedArtifactResponse["artifact_type"])}
+                    onChange={(event) => {
+                      setArtifactType(event.target.value as GeneratedArtifactResponse["artifact_type"]);
+                      setGenerationCourseId(null);
+                      setGenerationChapterId(null);
+                      setGenerationLessonId(null);
+                    }}
                     className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
                   >
                     <option value="placement_test">Test de positionnement</option>
@@ -448,21 +485,98 @@ export function AdminDashboardPage() {
                   <Label htmlFor="generation-level">Niveau</Label>
                   <Input id="generation-level" type="number" min={1} value={generationLevel} onChange={(event) => setGenerationLevel(event.target.value)} />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="generation-course-id">ID du cours</Label>
-                  <Input id="generation-course-id" type="number" min={1} value={generationCourseId} onChange={(event) => setGenerationCourseId(event.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="generation-chapter-id">ID du chapitre</Label>
-                  <Input id="generation-chapter-id" type="number" min={1} value={generationChapterId} onChange={(event) => setGenerationChapterId(event.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="generation-lesson-id">ID de la leçon</Label>
-                  <Input id="generation-lesson-id" type="number" min={1} value={generationLessonId} onChange={(event) => setGenerationLessonId(event.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="generation-student-id">ID de l'étudiant</Label>
-                  <Input id="generation-student-id" type="number" min={1} value={generationStudentId} onChange={(event) => setGenerationStudentId(event.target.value)} />
+                {needsChapter || needsLesson ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="generation-course">Cours</Label>
+                    <select
+                      id="generation-course"
+                      value={generationCourseId ?? ""}
+                      onChange={(event) => {
+                        const value = event.target.value ? Number(event.target.value) : null;
+                        setGenerationCourseId(value);
+                        setGenerationChapterId(null);
+                        setGenerationLessonId(null);
+                      }}
+                      className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                    >
+                      <option value="">Sélectionner un cours...</option>
+                      {coursesQuery.data?.map((course) => (
+                        <option key={course.id} value={course.id}>{course.title} · {course.subject}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+                {needsChapter ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="generation-chapter">Chapitre</Label>
+                    <select
+                      id="generation-chapter"
+                      value={generationChapterId ?? ""}
+                      disabled={generationCourseId === null}
+                      onChange={(event) => setGenerationChapterId(event.target.value ? Number(event.target.value) : null)}
+                      className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:opacity-50"
+                    >
+                      <option value="">+ Nouveau chapitre</option>
+                      {chaptersQuery.data?.map((chapter) => (
+                        <option key={chapter.id} value={chapter.id}>{chapter.title} (ordre {chapter.order})</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+                {needsLesson ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="generation-chapter-for-lesson">Chapitre</Label>
+                    <select
+                      id="generation-chapter-for-lesson"
+                      value={generationChapterId ?? ""}
+                      disabled={generationCourseId === null}
+                      onChange={(event) => {
+                        setGenerationChapterId(event.target.value ? Number(event.target.value) : null);
+                        setGenerationLessonId(null);
+                      }}
+                      className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:opacity-50"
+                    >
+                      <option value="">Sélectionner un chapitre...</option>
+                      {chaptersQuery.data?.map((chapter) => (
+                        <option key={chapter.id} value={chapter.id}>{chapter.title} (ordre {chapter.order})</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+                {needsLesson ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="generation-lesson">Leçon</Label>
+                    <select
+                      id="generation-lesson"
+                      value={generationLessonId ?? ""}
+                      disabled={generationChapterId === null}
+                      onChange={(event) => setGenerationLessonId(event.target.value ? Number(event.target.value) : null)}
+                      className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:opacity-50"
+                    >
+                      <option value="">Sélectionner une leçon...</option>
+                      {lessonsQuery.data?.map((lesson) => (
+                        <option key={lesson.id} value={lesson.id}>{lesson.title}</option>
+                      ))}
+                    </select>
+                    {generationChapterId !== null && lessonsQuery.data?.length === 0 ? (
+                      <p className="text-xs text-amber-600">Ce chapitre n'a pas encore de leçon. Générez-en une d'abord.</p>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="space-y-2 md:col-span-2">
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-slate-500 underline"
+                    onClick={() => setShowAdvanced((current) => !current)}
+                  >
+                    {showAdvanced ? "Masquer les options avancées" : "Afficher les options avancées"}
+                  </button>
+                  {showAdvanced ? (
+                    <div className="mt-2 space-y-2">
+                      <Label htmlFor="generation-student-id">ID de l'étudiant (régénération personnalisée)</Label>
+                      <Input id="generation-student-id" type="number" min={1} value={generationStudentId} onChange={(event) => setGenerationStudentId(event.target.value)} />
+                    </div>
+                  ) : null}
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="generation-instruction">Consigne</Label>
@@ -496,7 +610,7 @@ export function AdminDashboardPage() {
                 Conseils de génération
               </div>
               <p className="mt-2 leading-6">
-                Pour les parcours de leçon, de quiz et de validation, fournissez un identifiant de chapitre ou de leçon lorsque vous voulez que le worker rattache la sortie à une partie précise du programme.
+Pour une leçon, choisissez un cours puis un chapitre existant (ou laissez « Nouveau chapitre » pour en créer un). Pour un quiz, choisissez la leçon à laquelle il doit être rattaché.
               </p>
             </div>
           </CardContent>

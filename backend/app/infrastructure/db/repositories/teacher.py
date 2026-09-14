@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.domain.entities.teacher import Teacher as DomainTeacher
 from app.infrastructure.db.models import Teacher as TeacherModel
+from app.infrastructure.db.models import User as UserModel
 from app.infrastructure.db.repositories.base import BaseRepository
 from app.infrastructure.db.repositories.errors import NotFoundError
 
@@ -39,6 +40,19 @@ class TeacherRepositoryImpl(BaseRepository[TeacherModel]):
 
     async def list(self, offset: int = 0, limit: int = 100) -> Sequence[DomainTeacher]:
         stmt = select(TeacherModel).offset(offset).limit(limit).options(selectinload(TeacherModel.user))
+        result = await self.session.execute(stmt)
+        orms = result.scalars().all()
+        return [DomainTeacher(id=o.id, user_id=o.user_id) for o in orms]
+
+    async def list_by_organization(self, organization_id: int, offset: int = 0, limit: int = 100) -> Sequence[DomainTeacher]:
+        stmt = (
+            select(TeacherModel)
+            .join(UserModel, UserModel.id == TeacherModel.user_id)
+            .where(UserModel.organization_id == organization_id)
+            .offset(offset)
+            .limit(limit)
+            .options(selectinload(TeacherModel.user))
+        )
         result = await self.session.execute(stmt)
         orms = result.scalars().all()
         return [DomainTeacher(id=o.id, user_id=o.user_id) for o in orms]

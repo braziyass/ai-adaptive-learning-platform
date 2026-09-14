@@ -15,6 +15,7 @@ from app.application.dtos.admin_teachers import (
     TeacherAdminReadDTO,
     TeacherAdminUpdateDTO,
 )
+from app.application.services.audit import AuditLogger
 from app.domain.entities.enums import Role
 from app.domain.entities.student import Student as DomainStudent
 from app.domain.entities.teacher import Teacher as DomainTeacher
@@ -71,13 +72,27 @@ def _teacher_read(teacher: DomainTeacher, user: DomainUser) -> TeacherAdminReadD
 
 
 class StudentAdminService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, organization_id: int, actor_user_id: int | None = None) -> None:
         self.session = session
+        self.organization_id = organization_id
+        self.actor_user_id = actor_user_id
         self.user_repo = UserRepositoryImpl(session)
         self.student_repo = StudentRepositoryImpl(session)
+        self.audit = AuditLogger(session)
+
+    async def _require_student_in_org(self, student_id: int) -> tuple:
+        student = await self.student_repo.get_by_id(student_id)
+        if student is None:
+            raise AdminNotFoundError("Student not found")
+        user = await self.user_repo.get_by_id(student.user_id)
+        if user is None:
+            raise AdminPersistenceError("Student user record is missing")
+        if user.organization_id != self.organization_id:
+            raise AdminNotFoundError("Student not found")
+        return student, user
 
     async def list_students(self, offset: int = 0, limit: int = 100) -> Sequence[StudentAdminReadDTO]:
-        students = await self.student_repo.list(offset=offset, limit=limit)
+        students = await self.student_repo.list_by_organization(self.organization_id, offset=offset, limit=limit)
         result: list[StudentAdminReadDTO] = []
         for student in students:
             user = await self.user_repo.get_by_id(student.user_id)
@@ -87,12 +102,7 @@ class StudentAdminService:
         return result
 
     async def get_student(self, student_id: int) -> StudentAdminReadDTO:
-        student = await self.student_repo.get_by_id(student_id)
-        if student is None:
-            raise AdminNotFoundError("Student not found")
-        user = await self.user_repo.get_by_id(student.user_id)
-        if user is None:
-            raise AdminPersistenceError("Student user record is missing")
+        student, user = await self._require_student_in_org(student_id)
         return _student_read(student, user)
 
     async def create_student(self, payload: StudentAdminCreateDTO) -> StudentAdminReadDTO:
@@ -108,6 +118,7 @@ class StudentAdminService:
                 email=str(payload.email),
                 password=hash_password(payload.password),
                 role=Role.STUDENT,
+                organization_id=self.organization_id,
             )
             created_user = await self.user_repo.create(user, commit=False)
             student = DomainStudent(
@@ -117,6 +128,13 @@ class StudentAdminService:
                 placement_score=payload.placement_score,
             )
             created_student = await self.student_repo.create(student, commit=False)
+            await self.audit.log(
+                organization_id=self.organization_id,
+                actor_user_id=self.actor_user_id,
+                action="student.create",
+                resource_type="student",
+                resource_id=created_student.id,
+            )
             await self.session.commit()
             return _student_read(created_student, created_user)
         except IntegrityViolationError as exc:
@@ -127,12 +145,7 @@ class StudentAdminService:
             raise AdminPersistenceError(str(exc)) from exc
 
     async def update_student(self, student_id: int, payload: StudentAdminUpdateDTO) -> StudentAdminReadDTO:
-        student = await self.student_repo.get_by_id(student_id)
-        if student is None:
-            raise AdminNotFoundError("Student not found")
-        user = await self.user_repo.get_by_id(student.user_id)
-        if user is None:
-            raise AdminPersistenceError("Student user record is missing")
+        student, user = await self._require_student_in_org(student_id)
 
         duplicate = await self.user_repo.get_by_email(payload.email)
         if duplicate is not None and duplicate.id != user.id:
@@ -154,9 +167,18 @@ class StudentAdminService:
                 user_id=student.user_id,
                 current_level=payload.current_level,
                 placement_score=payload.placement_score,
+                points=student.points,
+                placement_completed_at=student.placement_completed_at,
             )
             updated_user = await self.user_repo.update(updated_user, commit=False)
             updated_student = await self.student_repo.update(updated_student, commit=False)
+            await self.audit.log(
+                organization_id=self.organization_id,
+                actor_user_id=self.actor_user_id,
+                action="student.update",
+                resource_type="student",
+                resource_id=updated_student.id,
+            )
             await self.session.commit()
             return _student_read(updated_student, updated_user)
         except IntegrityViolationError as exc:
@@ -167,11 +189,16 @@ class StudentAdminService:
             raise AdminPersistenceError(str(exc)) from exc
 
     async def delete_student(self, student_id: int) -> None:
-        student = await self.student_repo.get_by_id(student_id)
-        if student is None:
-            raise AdminNotFoundError("Student not found")
+        student, _ = await self._require_student_in_org(student_id)
         try:
             await self.user_repo.delete(student.user_id, commit=False)
+            await self.audit.log(
+                organization_id=self.organization_id,
+                actor_user_id=self.actor_user_id,
+                action="student.delete",
+                resource_type="student",
+                resource_id=student.id,
+            )
             await self.session.commit()
         except RepositoryError as exc:
             await self.session.rollback()
@@ -179,13 +206,27 @@ class StudentAdminService:
 
 
 class TeacherAdminService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, organization_id: int, actor_user_id: int | None = None) -> None:
         self.session = session
+        self.organization_id = organization_id
+        self.actor_user_id = actor_user_id
         self.user_repo = UserRepositoryImpl(session)
         self.teacher_repo = TeacherRepositoryImpl(session)
+        self.audit = AuditLogger(session)
+
+    async def _require_teacher_in_org(self, teacher_id: int) -> tuple:
+        teacher = await self.teacher_repo.get_by_id(teacher_id)
+        if teacher is None:
+            raise AdminNotFoundError("Teacher not found")
+        user = await self.user_repo.get_by_id(teacher.user_id)
+        if user is None:
+            raise AdminPersistenceError("Teacher user record is missing")
+        if user.organization_id != self.organization_id:
+            raise AdminNotFoundError("Teacher not found")
+        return teacher, user
 
     async def list_teachers(self, offset: int = 0, limit: int = 100) -> Sequence[TeacherAdminReadDTO]:
-        teachers = await self.teacher_repo.list(offset=offset, limit=limit)
+        teachers = await self.teacher_repo.list_by_organization(self.organization_id, offset=offset, limit=limit)
         result: list[TeacherAdminReadDTO] = []
         for teacher in teachers:
             user = await self.user_repo.get_by_id(teacher.user_id)
@@ -195,12 +236,7 @@ class TeacherAdminService:
         return result
 
     async def get_teacher(self, teacher_id: int) -> TeacherAdminReadDTO:
-        teacher = await self.teacher_repo.get_by_id(teacher_id)
-        if teacher is None:
-            raise AdminNotFoundError("Teacher not found")
-        user = await self.user_repo.get_by_id(teacher.user_id)
-        if user is None:
-            raise AdminPersistenceError("Teacher user record is missing")
+        teacher, user = await self._require_teacher_in_org(teacher_id)
         return _teacher_read(teacher, user)
 
     async def create_teacher(self, payload: TeacherAdminCreateDTO) -> TeacherAdminReadDTO:
@@ -216,10 +252,18 @@ class TeacherAdminService:
                 email=str(payload.email),
                 password=hash_password(payload.password),
                 role=Role.TEACHER,
+                organization_id=self.organization_id,
             )
             created_user = await self.user_repo.create(user, commit=False)
             teacher = DomainTeacher(id=None, user_id=created_user.id)
             created_teacher = await self.teacher_repo.create(teacher, commit=False)
+            await self.audit.log(
+                organization_id=self.organization_id,
+                actor_user_id=self.actor_user_id,
+                action="teacher.create",
+                resource_type="teacher",
+                resource_id=created_teacher.id,
+            )
             await self.session.commit()
             return _teacher_read(created_teacher, created_user)
         except IntegrityViolationError as exc:
@@ -230,12 +274,7 @@ class TeacherAdminService:
             raise AdminPersistenceError(str(exc)) from exc
 
     async def update_teacher(self, teacher_id: int, payload: TeacherAdminUpdateDTO) -> TeacherAdminReadDTO:
-        teacher = await self.teacher_repo.get_by_id(teacher_id)
-        if teacher is None:
-            raise AdminNotFoundError("Teacher not found")
-        user = await self.user_repo.get_by_id(teacher.user_id)
-        if user is None:
-            raise AdminPersistenceError("Teacher user record is missing")
+        teacher, user = await self._require_teacher_in_org(teacher_id)
 
         duplicate = await self.user_repo.get_by_email(payload.email)
         if duplicate is not None and duplicate.id != user.id:
@@ -255,6 +294,13 @@ class TeacherAdminService:
             updated_teacher = DomainTeacher(id=teacher.id, user_id=teacher.user_id)
             updated_user = await self.user_repo.update(updated_user, commit=False)
             updated_teacher = await self.teacher_repo.update(updated_teacher, commit=False)
+            await self.audit.log(
+                organization_id=self.organization_id,
+                actor_user_id=self.actor_user_id,
+                action="teacher.update",
+                resource_type="teacher",
+                resource_id=updated_teacher.id,
+            )
             await self.session.commit()
             return _teacher_read(updated_teacher, updated_user)
         except IntegrityViolationError as exc:
@@ -265,11 +311,16 @@ class TeacherAdminService:
             raise AdminPersistenceError(str(exc)) from exc
 
     async def delete_teacher(self, teacher_id: int) -> None:
-        teacher = await self.teacher_repo.get_by_id(teacher_id)
-        if teacher is None:
-            raise AdminNotFoundError("Teacher not found")
+        teacher, _ = await self._require_teacher_in_org(teacher_id)
         try:
             await self.user_repo.delete(teacher.user_id, commit=False)
+            await self.audit.log(
+                organization_id=self.organization_id,
+                actor_user_id=self.actor_user_id,
+                action="teacher.delete",
+                resource_type="teacher",
+                resource_id=teacher.id,
+            )
             await self.session.commit()
         except RepositoryError as exc:
             await self.session.rollback()

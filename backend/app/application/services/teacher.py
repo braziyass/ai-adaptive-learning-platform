@@ -12,12 +12,14 @@ from app.application.dtos.teacher_module import (
     TeacherStudentSummaryDTO,
     ValidationTestResultDTO,
 )
+from app.application.services.leveling import LevelingService
 from app.domain.entities.enums import Role
 from app.domain.entities.user import User as DomainUser
 from app.infrastructure.db.models import Chapter as ChapterModel
 from app.infrastructure.db.models import Lesson as LessonModel
 from app.infrastructure.db.models import Student as StudentModel
 from app.infrastructure.db.models import StudentProgress as ProgressModel
+from app.infrastructure.db.models import User as UserModel
 from app.infrastructure.db.repositories import StudentRepositoryImpl, UserRepositoryImpl
 
 
@@ -34,18 +36,13 @@ class TeacherPersistenceError(TeacherModuleError):
 
 
 def _assigned_level(placement_score: int) -> int:
-    if placement_score <= 30:
-        return 1
-    if placement_score <= 60:
-        return 2
-    if placement_score <= 80:
-        return 3
-    return 4
+    return LevelingService.assign_level_from_score(placement_score)
 
 
 class TeacherModuleService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, organization_id: int) -> None:
         self.session = session
+        self.organization_id = organization_id
         self.user_repo = UserRepositoryImpl(session)
         self.student_repo = StudentRepositoryImpl(session)
 
@@ -58,9 +55,18 @@ class TeacherModuleService:
             raise TeacherPersistenceError("Teacher user record is missing")
         return user
 
+    async def _require_student_in_org(self, student_id: int):
+        student = await self.student_repo.get_by_id(student_id)
+        if student is None:
+            raise TeacherNotFoundError("Student not found")
+        user = await self.user_repo.get_by_id(student.user_id)
+        if user is None or user.organization_id != self.organization_id:
+            raise TeacherNotFoundError("Student not found")
+        return student
+
     async def list_students(self, current_user: DomainUser, offset: int = 0, limit: int = 100) -> Sequence[TeacherStudentSummaryDTO]:
         await self._ensure_teacher(current_user)
-        students = await self.student_repo.list(offset=offset, limit=limit)
+        students = await self.student_repo.list_by_organization(self.organization_id, offset=offset, limit=limit)
         result: list[TeacherStudentSummaryDTO] = []
         for student in students:
             user = await self.user_repo.get_by_id(student.user_id)
@@ -81,9 +87,7 @@ class TeacherModuleService:
 
     async def get_student_progress(self, current_user: DomainUser, student_id: int) -> Sequence[TeacherProgressItemDTO]:
         await self._ensure_teacher(current_user)
-        student = await self.student_repo.get_by_id(student_id)
-        if student is None:
-            raise TeacherNotFoundError("Student not found")
+        student = await self._require_student_in_org(student_id)
 
         stmt = (
             select(ProgressModel, LessonModel, ChapterModel)
@@ -111,9 +115,7 @@ class TeacherModuleService:
 
     async def get_placement_test_result(self, current_user: DomainUser, student_id: int) -> PlacementTestResultDTO:
         await self._ensure_teacher(current_user)
-        student = await self.student_repo.get_by_id(student_id)
-        if student is None:
-            raise TeacherNotFoundError("Student not found")
+        student = await self._require_student_in_org(student_id)
         user = await self.user_repo.get_by_id(student.user_id)
         if user is None:
             raise TeacherPersistenceError("Student user record is missing")
@@ -130,9 +132,7 @@ class TeacherModuleService:
 
     async def get_validation_test_results(self, current_user: DomainUser, student_id: int) -> Sequence[ValidationTestResultDTO]:
         await self._ensure_teacher(current_user)
-        student = await self.student_repo.get_by_id(student_id)
-        if student is None:
-            raise TeacherNotFoundError("Student not found")
+        student = await self._require_student_in_org(student_id)
 
         stmt = (
             select(ProgressModel, LessonModel, ChapterModel)
@@ -165,15 +165,29 @@ class TeacherModuleService:
     async def get_statistics(self, current_user: DomainUser) -> TeacherStatisticsDTO:
         await self._ensure_teacher(current_user)
 
-        student_count_stmt = select(func.count(StudentModel.id))
-        placement_avg_stmt = select(func.coalesce(func.avg(StudentModel.placement_score), 0.0))
-        current_level_avg_stmt = select(func.coalesce(func.avg(StudentModel.current_level), 0.0))
-        completed_lessons_stmt = select(func.count(ProgressModel.lesson_id)).where(ProgressModel.completed.is_(True))
-        total_progress_stmt = select(func.count(ProgressModel.lesson_id))
+        org_students = (
+            select(StudentModel.id)
+            .join(UserModel, UserModel.id == StudentModel.user_id)
+            .where(UserModel.organization_id == self.organization_id)
+        )
+        student_count_stmt = select(func.count()).select_from(org_students.subquery())
+        placement_avg_stmt = select(func.coalesce(func.avg(StudentModel.placement_score), 0.0)).where(
+            StudentModel.id.in_(org_students)
+        )
+        current_level_avg_stmt = select(func.coalesce(func.avg(StudentModel.current_level), 0.0)).where(
+            StudentModel.id.in_(org_students)
+        )
+        completed_lessons_stmt = select(func.count(ProgressModel.lesson_id)).where(
+            ProgressModel.completed.is_(True), ProgressModel.student_id.in_(org_students)
+        )
+        total_progress_stmt = select(func.count(ProgressModel.lesson_id)).where(
+            ProgressModel.student_id.in_(org_students)
+        )
         passed_validations_stmt = select(func.count(ProgressModel.lesson_id)).where(
             ProgressModel.completed.is_(True),
             ProgressModel.score.is_not(None),
             ProgressModel.score >= 80,
+            ProgressModel.student_id.in_(org_students),
         )
 
         student_count = (await self.session.execute(student_count_stmt)).scalar_one()

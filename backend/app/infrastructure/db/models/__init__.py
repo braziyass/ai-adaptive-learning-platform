@@ -1,3 +1,4 @@
+from .organization import Organization
 from .user import User
 from .student import Student
 from .teacher import Teacher
@@ -10,8 +11,11 @@ from .student_progress import StudentProgress
 from .enums import RoleEnum, QuestionTypeEnum
 from .refresh_token import RefreshToken
 from .generated_test import AIGeneratedTest
+from .audit_log import AuditLog
+from .placement_test import PlacementTest, PlacementTestQuestion
 
 __all__ = [
+    "Organization",
     "User",
     "Student",
     "Teacher",
@@ -23,6 +27,9 @@ __all__ = [
     "StudentProgress",
     "AIGeneratedTest",
     "RefreshToken",
+    "AuditLog",
+    "PlacementTest",
+    "PlacementTestQuestion",
     "RoleEnum",
     "QuestionTypeEnum",
 ]

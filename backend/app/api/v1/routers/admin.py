@@ -3,10 +3,23 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.application.services.admin import AdminConflictError, AdminNotFoundError, AdminPersistenceError
+from app.application.services.audit import AuditLogger
+from app.application.services.curriculum import CurriculumBrowseService, CurriculumNotFoundError
 from app.application.use_cases.admin import StudentAdminUseCase, TeacherAdminUseCase
-from app.presentation.dependencies import get_current_admin, get_student_admin_use_case, get_teacher_admin_use_case
+from app.domain.entities.user import User as DomainUser
+from app.presentation.dependencies import (
+    get_audit_logger,
+    get_curriculum_browse_service,
+    get_current_admin,
+    get_student_admin_use_case,
+    get_teacher_admin_use_case,
+)
 from app.presentation.schemas.admin_students import StudentCreateRequest, StudentUpdateRequest, StudentResponse
 from app.presentation.schemas.admin_teachers import TeacherCreateRequest, TeacherUpdateRequest, TeacherResponse
+from app.presentation.schemas.audit import AuditLogResponse
+from app.presentation.schemas.chapters import ChapterResponse
+from app.presentation.schemas.courses import CourseResponse
+from app.presentation.schemas.lessons import LessonResponse
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(get_current_admin)])
 
@@ -113,3 +126,34 @@ async def delete_teacher(teacher_id: int, use_case: TeacherAdminUseCase = Depend
         await use_case.delete(teacher_id)
     except Exception as exc:
         raise _translate_error(exc)
+
+
+@router.get("/audit-logs", response_model=list[AuditLogResponse])
+async def list_audit_logs(
+    offset: int = 0,
+    limit: int = 100,
+    current_user: DomainUser = Depends(get_current_admin),
+    audit: AuditLogger = Depends(get_audit_logger),
+):
+    return await audit.list_for_organization(current_user.organization_id, offset=offset, limit=limit)
+
+
+@router.get("/courses", response_model=list[CourseResponse])
+async def list_courses(service: CurriculumBrowseService = Depends(get_curriculum_browse_service)):
+    return await service.list_courses()
+
+
+@router.get("/courses/{course_id}/chapters", response_model=list[ChapterResponse])
+async def list_chapters(course_id: int, service: CurriculumBrowseService = Depends(get_curriculum_browse_service)):
+    try:
+        return await service.list_chapters(course_id)
+    except CurriculumNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.get("/chapters/{chapter_id}/lessons", response_model=list[LessonResponse])
+async def list_lessons(chapter_id: int, service: CurriculumBrowseService = Depends(get_curriculum_browse_service)):
+    try:
+        return await service.list_lessons(chapter_id)
+    except CurriculumNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))

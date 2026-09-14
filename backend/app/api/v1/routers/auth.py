@@ -3,22 +3,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.presentation.schemas.auth import LoginRequest, TokenResponse, RefreshRequest, LogoutRequest
 from app.core.database import get_db
+from app.infrastructure.auth.rate_limit import login_rate_limiter, refresh_rate_limiter
 from app.infrastructure.auth.service import AuthService
 
 router = APIRouter()
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, dependencies=[Depends(login_rate_limiter)])
 async def login(payload: LoginRequest, db: AsyncSession = Depends(get_db)):
     auth = AuthService(db)
     user = await auth.authenticate(payload.email, payload.password)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    access, refresh = await auth.create_tokens_for_user(user.id, extra_claims={"role": user.role})
+    access, refresh = await auth.create_tokens_for_user(
+        user.id, extra_claims={"role": user.role, "org_id": user.organization_id}
+    )
     return TokenResponse(access_token=access, refresh_token=refresh)
 
 
-@router.post("/refresh", response_model=TokenResponse)
+@router.post("/refresh", response_model=TokenResponse, dependencies=[Depends(refresh_rate_limiter)])
 async def refresh(payload: RefreshRequest, db: AsyncSession = Depends(get_db)):
     auth = AuthService(db)
     try:

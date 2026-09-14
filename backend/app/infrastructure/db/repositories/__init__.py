@@ -11,6 +11,7 @@ from .question import QuestionRepositoryImpl
 from .student_progress import StudentProgressRepositoryImpl
 from .refresh_token import RefreshTokenRepositoryImpl
 from .generated_test import GeneratedTestRepositoryImpl
+from .placement_test import PlacementTestRepositoryImpl
 
 __all__ = [
     "UserRepositoryImpl",
@@ -24,6 +25,7 @@ __all__ = [
     "StudentProgressRepositoryImpl",
     "GeneratedTestRepositoryImpl",
     "RefreshTokenRepositoryImpl",
+    "PlacementTestRepositoryImpl",
 ]
 
 
@@ -69,3 +71,7 @@ def get_generated_test_repository(session: AsyncSession) -> GeneratedTestReposit
 
 def get_refresh_token_repository(session: AsyncSession) -> RefreshTokenRepositoryImpl:
     return RefreshTokenRepositoryImpl(session)
+
+
+def get_placement_test_repository(session: AsyncSession) -> PlacementTestRepositoryImpl:
+    return PlacementTestRepositoryImpl(session)

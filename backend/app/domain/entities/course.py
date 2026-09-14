@@ -7,3 +7,4 @@ class Course:
     id: Optional[int]
     title: str
     subject: str
+    organization_id: Optional[int] = None

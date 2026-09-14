@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
@@ -15,6 +16,8 @@ class StudentProfileDTO(BaseModel):
     email: str
     current_level: int
     placement_score: int
+    points: int
+    placement_completed_at: Optional[datetime] = None
 
 
 class StudentCurrentLevelDTO(BaseModel):
@@ -120,4 +123,39 @@ class QuizSubmissionResultDTO(BaseModel):
     total: int
     correct: int
     attempts: int
+    points_awarded: int = 0
     details: list[QuizSubmissionQuestionResultDTO] = []
+
+
+class PlacementTestQuestionDTO(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    question_id: int
+    question: str
+    question_type: str
+    options: list[str] = []
+
+
+class PlacementTestDTO(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    placement_test_id: int
+    title: str
+    subject: str
+    questions: list[PlacementTestQuestionDTO] = []
+
+
+class PlacementTestSubmissionResultDTO(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    score: int
+    total: int
+    correct: int
+    assigned_level: int
+    details: list[QuizSubmissionQuestionResultDTO] = []
+
+
+class ValidationTestSubmissionResultDTO(QuizSubmissionResultDTO):
+    passed: bool
+    leveled_up: bool
+    new_level: int

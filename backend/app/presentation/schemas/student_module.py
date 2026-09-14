@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
@@ -15,6 +16,8 @@ class StudentProfileResponse(BaseModel):
     email: str
     current_level: int
     placement_score: int
+    points: int
+    placement_completed_at: Optional[datetime] = None
 
 
 class StudentCurrentLevelResponse(BaseModel):
@@ -126,4 +129,55 @@ class QuizSubmissionResponse(BaseModel):
     total: int
     correct: int
     attempts: int
+    points_awarded: int = 0
+    details: list[QuizSubmissionQuestionResultResponse] = []
+
+
+class PlacementTestQuestionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    question_id: int
+    question: str
+    question_type: str
+    options: list[str] = []
+
+
+class PlacementTestResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    placement_test_id: int
+    title: str
+    subject: str
+    questions: list[PlacementTestQuestionResponse] = []
+
+
+class PlacementTestSubmissionRequest(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    answers: list[dict]
+
+
+class PlacementTestSubmissionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    score: int
+    total: int
+    correct: int
+    assigned_level: int
+    details: list[QuizSubmissionQuestionResultResponse] = []
+
+
+class ValidationTestSubmissionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    quiz_id: int
+    lesson_id: int
+    score: int | None
+    total: int
+    correct: int
+    attempts: int
+    points_awarded: int = 0
+    passed: bool
+    leveled_up: bool
+    new_level: int
     details: list[QuizSubmissionQuestionResultResponse] = []

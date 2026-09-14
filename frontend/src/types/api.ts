@@ -38,6 +38,8 @@ export interface StudentProfile {
   email: string;
   current_level: number;
   placement_score: number;
+  points: number;
+  placement_completed_at: string | null;
 }
 
 export interface StudentCurrentLevel {
@@ -154,6 +156,26 @@ export interface TeacherStatistics {
   validation_pass_rate: number;
 }
 
+export interface AdminCourse {
+  id: number;
+  title: string;
+  subject: string;
+}
+
+export interface AdminChapter {
+  id: number;
+  course_id: number;
+  title: string;
+  order: number;
+}
+
+export interface AdminLesson {
+  id: number;
+  chapter_id: number;
+  title: string;
+  content: string;
+}
+
 export interface PdfIngestionResponse {
   source_document: string;
   chunk_count: number;
@@ -198,6 +220,35 @@ export interface QuizSubmissionResult {
   total: number;
   correct: number;
   attempts: number;
+  points_awarded: number;
+  details: QuizSubmissionResultDetail[];
+}
+
+export interface ValidationTestSubmissionResult extends QuizSubmissionResult {
+  passed: boolean;
+  leveled_up: boolean;
+  new_level: number;
+}
+
+export interface PlacementTestQuestion {
+  question_id: number;
+  question: string;
+  question_type: string;
+  options: string[];
+}
+
+export interface PlacementTest {
+  placement_test_id: number;
+  title: string;
+  subject: string;
+  questions: PlacementTestQuestion[];
+}
+
+export interface PlacementTestSubmissionResult {
+  score: number;
+  total: number;
+  correct: number;
+  assigned_level: number;
   details: QuizSubmissionResultDetail[];
 }
 

@@ -2,17 +2,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
-from app.domain.entities.enums import Role
-
 
 @dataclass
-class User:
+class Organization:
     id: Optional[int]
-    first_name: str
-    last_name: str
-    email: str
-    password: str
-    role: Role = Role.STUDENT
-    organization_id: Optional[int] = None
+    name: str
+    slug: str
+    plan: str = "standard"
+    is_active: bool = True
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

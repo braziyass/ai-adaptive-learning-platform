@@ -28,7 +28,14 @@ from app.infrastructure.ai.types import GenerationRequest, SourceChunk
 from app.infrastructure.ai.validators.validation_service import ValidationService
 from app.infrastructure.ai.vectorstore.vectorstore_service import VectorStoreService
 from app.infrastructure.db.repositories.generated_artifact_repository import SQLAlchemyGeneratedArtifactRepository
-from app.infrastructure.db.repositories import get_chapter_repository, get_course_repository, get_lesson_repository, get_question_repository, get_quiz_repository
+from app.infrastructure.db.repositories import (
+    get_chapter_repository,
+    get_course_repository,
+    get_lesson_repository,
+    get_placement_test_repository,
+    get_question_repository,
+    get_quiz_repository,
+)
 
 
 class GroqChatClient:
@@ -138,8 +145,16 @@ class GroqChatClient:
 
 
 class Worker:
-    def __init__(self, session: AsyncSession, settings: AISettings | None = None, api_key: str | None = None, allow_fallback: bool | None = None) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        organization_id: int,
+        settings: AISettings | None = None,
+        api_key: str | None = None,
+        allow_fallback: bool | None = None,
+    ) -> None:
         self.session = session
+        self.organization_id = organization_id
         self.settings = settings or AISettings()
         self.allow_fallback = self.settings.allow_fallback if allow_fallback is None else allow_fallback
         self.pdf_extractor = PDFExtractor()
@@ -162,6 +177,7 @@ class Worker:
         self.lesson_repository = get_lesson_repository(self.session)
         self.quiz_repository = get_quiz_repository(self.session)
         self.question_repository = get_question_repository(self.session)
+        self.placement_test_repository = get_placement_test_repository(self.session)
 
     def _format_lesson_content(self, payload: dict) -> str:
         sections: list[str] = []
@@ -190,6 +206,9 @@ class Worker:
     async def _resolve_chapter_id(self, chapter_id: int, request: GenerationRequest) -> int:
         chapter = await self.chapter_repository.get_by_id(chapter_id)
         if chapter is not None:
+            course = await self.course_repository.get_by_id(chapter.course_id, organization_id=self.organization_id)
+            if course is None:
+                raise RuntimeError("Chapter does not belong to this organization")
             return chapter.id
 
         course = await self.course_repository.create(
@@ -197,6 +216,7 @@ class Worker:
                 id=None,
                 title=f"{request.subject} Adaptive Course",
                 subject=request.subject,
+                organization_id=self.organization_id,
             ),
         )
         created_chapter = await self.chapter_repository.create(
@@ -241,6 +261,7 @@ class Worker:
             GeneratedArtifact(
                 id=None,
                 artifact_type="lesson",
+                organization_id=self.organization_id,
                 title=content.title,
                 subject=request.subject,
                 level=request.level,
@@ -285,6 +306,7 @@ class Worker:
             GeneratedArtifact(
                 id=None,
                 artifact_type="quiz",
+                organization_id=self.organization_id,
                 title=content.title,
                 subject=request.subject,
                 level=request.level,
@@ -300,10 +322,20 @@ class Worker:
 
     async def generate_placement_test(self, request: GenerationRequest) -> int:
         content = self.placement_generator.generate(request)
+        questions = content.payload.get("questions", [])
+        if isinstance(questions, list) and questions:
+            await self.placement_test_repository.deactivate_active(self.organization_id)
+            await self.placement_test_repository.create_with_questions(
+                organization_id=self.organization_id,
+                subject=request.subject,
+                title=content.title,
+                questions=[q for q in questions if isinstance(q, dict)],
+            )
         artifact = await self._store_artifact(
             GeneratedArtifact(
                 id=None,
                 artifact_type="placement_test",
+                organization_id=self.organization_id,
                 title=content.title,
                 subject=request.subject,
                 level=request.level,
@@ -323,6 +355,7 @@ class Worker:
             GeneratedArtifact(
                 id=None,
                 artifact_type="validation_test",
+                organization_id=self.organization_id,
                 title=content.title,
                 subject=request.subject,
                 level=request.level,

@@ -2,6 +2,7 @@ import asyncio
 
 from app.core.database import AsyncSessionLocal
 from app.infrastructure.auth.password import hash_password
+from app.infrastructure.db.models.organization import Organization
 from app.infrastructure.db.models.user import User
 from sqlalchemy import select
 
@@ -16,7 +17,16 @@ async def main():
             print("Admin user already exists: admin@example.com")
             return
 
+        org_stmt = select(Organization).where(Organization.slug == "default")
+        org_result = await session.execute(org_stmt)
+        org = org_result.scalars().first()
+        if org is None:
+            org = Organization(name="Default Organization", slug="default")
+            session.add(org)
+            await session.flush()
+
         u = User(
+            organization_id=org.id,
             first_name="Admin",
             last_name="User",
             email="admin@example.com",

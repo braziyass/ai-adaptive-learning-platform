@@ -3,6 +3,9 @@ import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestCo
 import { clearAuthSession, createSessionFromTokens, getAccessToken, getRefreshToken, saveAuthSession } from "@/lib/auth";
 import type {
   AiGenerationRequest,
+  AdminChapter,
+  AdminCourse,
+  AdminLesson,
   AdminStudent,
   AdminTeacher,
   AuthTokens,
@@ -10,7 +13,9 @@ import type {
   GeneratedArtifactResponse,
   LoginRequest,
   PdfIngestionResponse,
+  PlacementTest,
   PlacementTestResult,
+  PlacementTestSubmissionResult,
   StudentCurrentLevel,
   StudentFormValues,
   StudentProfile,
@@ -20,6 +25,7 @@ import type {
   TeacherStudentSummary,
   UnlockedLesson,
   ValidationTestResult,
+  ValidationTestSubmissionResult,
   QuizSubmissionRequest,
   QuizSubmissionResult,
 } from "@/types/api";
@@ -124,6 +130,15 @@ export const adminApi = {
   deleteTeacher(teacherId: number) {
     return api.delete<void>(`/admin/teachers/${teacherId}`).then((response: AxiosResponse<void>) => response.data);
   },
+  listCourses() {
+    return api.get<AdminCourse[]>("/admin/courses").then((response: AxiosResponse<AdminCourse[]>) => response.data);
+  },
+  listChapters(courseId: number) {
+    return api.get<AdminChapter[]>(`/admin/courses/${courseId}/chapters`).then((response: AxiosResponse<AdminChapter[]>) => response.data);
+  },
+  listLessons(chapterId: number) {
+    return api.get<AdminLesson[]>(`/admin/chapters/${chapterId}/lessons`).then((response: AxiosResponse<AdminLesson[]>) => response.data);
+  },
 };
 
 export const studentApi = {
@@ -150,6 +165,22 @@ export const studentApi = {
   },
   validationResults() {
     return api.get<ValidationTestResult[]>("/student/validation-results").then((response: AxiosResponse<ValidationTestResult[]>) => response.data);
+  },
+  availableValidationTests() {
+    return api.get<AvailableQuiz[]>("/student/validation-tests").then((response: AxiosResponse<AvailableQuiz[]>) => response.data);
+  },
+  submitValidationTest(quizId: number, payload: QuizSubmissionRequest) {
+    return api
+      .post<ValidationTestSubmissionResult>(`/student/validation-tests/${quizId}/submit`, payload)
+      .then((response: AxiosResponse<ValidationTestSubmissionResult>) => response.data);
+  },
+  placementTest() {
+    return api.get<PlacementTest>("/student/placement-test").then((response: AxiosResponse<PlacementTest>) => response.data);
+  },
+  submitPlacementTest(payload: QuizSubmissionRequest) {
+    return api
+      .post<PlacementTestSubmissionResult>("/student/placement-test/submit", payload)
+      .then((response: AxiosResponse<PlacementTestSubmissionResult>) => response.data);
   },
 };
 

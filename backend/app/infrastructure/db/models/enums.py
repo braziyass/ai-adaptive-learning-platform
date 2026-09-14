@@ -2,6 +2,7 @@ import enum
 
 
 class RoleEnum(enum.Enum):
+    platform_admin = "platform_admin"
     administrator = "administrator"
     teacher = "teacher"
     student = "student"

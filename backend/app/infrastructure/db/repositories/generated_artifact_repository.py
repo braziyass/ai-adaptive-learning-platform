@@ -13,6 +13,7 @@ class SQLAlchemyGeneratedArtifactRepository(GeneratedArtifactRepository):
 
     async def create(self, artifact: GeneratedArtifact) -> GeneratedArtifact:
         model = GeneratedArtifactModel(
+            organization_id=artifact.organization_id,
             artifact_type=artifact.artifact_type,
             title=artifact.title,
             subject=artifact.subject,
@@ -35,6 +36,7 @@ class SQLAlchemyGeneratedArtifactRepository(GeneratedArtifactRepository):
             level=model.level,
             payload=model.payload,
             source_chunks=model.source_chunks,
+            organization_id=model.organization_id,
             course_id=model.course_id,
             chapter_id=model.chapter_id,
             lesson_id=model.lesson_id,
@@ -43,9 +45,11 @@ class SQLAlchemyGeneratedArtifactRepository(GeneratedArtifactRepository):
             updated_at=model.updated_at,
         )
 
-    async def get_by_id(self, artifact_id: int) -> GeneratedArtifact | None:
+    async def get_by_id(self, artifact_id: int, organization_id: int | None = None) -> GeneratedArtifact | None:
         model = await self.session.get(GeneratedArtifactModel, artifact_id)
         if model is None:
+            return None
+        if organization_id is not None and model.organization_id != organization_id:
             return None
         return GeneratedArtifact(
             id=model.id,
@@ -55,6 +59,7 @@ class SQLAlchemyGeneratedArtifactRepository(GeneratedArtifactRepository):
             level=model.level,
             payload=model.payload,
             source_chunks=model.source_chunks,
+            organization_id=model.organization_id,
             course_id=model.course_id,
             chapter_id=model.chapter_id,
             lesson_id=model.lesson_id,

@@ -19,6 +19,7 @@ class UserRepositoryImpl(BaseRepository[UserModel]):
 
     async def create(self, user: DomainUser, *, commit: bool = True) -> DomainUser:
         orm = UserModel(
+            organization_id=user.organization_id,
             first_name=user.first_name,
             last_name=user.last_name,
             email=user.email,
@@ -34,6 +35,7 @@ class UserRepositoryImpl(BaseRepository[UserModel]):
                 email=orm.email,
                 password=orm.password,
                 role=orm.role.value,
+                organization_id=orm.organization_id,
                 created_at=orm.created_at,
                 updated_at=orm.updated_at,
             )
@@ -55,6 +57,7 @@ class UserRepositoryImpl(BaseRepository[UserModel]):
             email=orm.email,
             password=orm.password,
             role=orm.role.value,
+            organization_id=orm.organization_id,
             created_at=orm.created_at,
             updated_at=orm.updated_at,
         )
@@ -72,12 +75,15 @@ class UserRepositoryImpl(BaseRepository[UserModel]):
             email=orm.email,
             password=orm.password,
             role=orm.role.value,
+            organization_id=orm.organization_id,
             created_at=orm.created_at,
             updated_at=orm.updated_at,
         )
 
-    async def list(self, offset: int = 0, limit: int = 100) -> Sequence[DomainUser]:
+    async def list(self, offset: int = 0, limit: int = 100, organization_id: int | None = None) -> Sequence[DomainUser]:
         stmt = select(UserModel).offset(offset).limit(limit)
+        if organization_id is not None:
+            stmt = stmt.where(UserModel.organization_id == organization_id)
         result = await self.session.execute(stmt)
         orms = result.scalars().all()
         return [
@@ -88,6 +94,7 @@ class UserRepositoryImpl(BaseRepository[UserModel]):
                 email=o.email,
                 password=o.password,
                 role=o.role.value,
+                organization_id=o.organization_id,
                 created_at=o.created_at,
                 updated_at=o.updated_at,
             )
@@ -112,6 +119,7 @@ class UserRepositoryImpl(BaseRepository[UserModel]):
                 email=updated.email,
                 password=updated.password,
                 role=updated.role.value,
+                organization_id=updated.organization_id,
                 created_at=updated.created_at,
                 updated_at=updated.updated_at,
             )

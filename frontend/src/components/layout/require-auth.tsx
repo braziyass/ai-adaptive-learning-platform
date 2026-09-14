@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { getAuthSession, getDashboardPath } from "@/lib/auth";
+import { useStudentProfileQuery } from "@/lib/query-hooks";
 
 export function RequireAuth() {
   const location = useLocation();
@@ -16,4 +17,26 @@ export function RequireAuth() {
 export function RoleLanding() {
   const session = getAuthSession();
   return <Navigate to={getDashboardPath(session?.role)} replace />;
+}
+
+const PLACEMENT_TEST_PATH = "/placement-test";
+
+export function RequireStudentPlacement() {
+  const session = getAuthSession();
+  const location = useLocation();
+  const profileQuery = useStudentProfileQuery();
+
+  if (session?.role !== "student" || location.pathname === PLACEMENT_TEST_PATH) {
+    return <Outlet />;
+  }
+
+  if (profileQuery.isLoading) {
+    return null;
+  }
+
+  if (profileQuery.data && !profileQuery.data.placement_completed_at) {
+    return <Navigate to={PLACEMENT_TEST_PATH} replace />;
+  }
+
+  return <Outlet />;
 }

@@ -9,11 +9,15 @@ from app.presentation.dependencies import get_current_student_user, get_student_
 from app.presentation.schemas.student_module import (
     AvailableQuizResponse,
     CompletedQuizResponse,
+    PlacementTestResponse,
+    PlacementTestSubmissionRequest,
+    PlacementTestSubmissionResponse,
     StudentCurrentLevelResponse,
     StudentProfileResponse,
     StudentProgressResponseItem,
     UnlockedLessonResponse,
     ValidationTestResultResponse,
+    ValidationTestSubmissionResponse,
     QuizSubmissionRequest,
     QuizSubmissionResponse,
 )
@@ -122,3 +126,50 @@ async def submit_quiz(
         tb = traceback.format_exc()
         # also include traceback in the error detail to aid local debugging
         raise _translate_error(Exception(f"{exc}\n\nTraceback:\n{tb}"))
+
+
+@router.get("/validation-tests", response_model=list[AvailableQuizResponse])
+async def get_available_validation_tests(
+    current_user: DomainUser = Depends(get_current_student_user),
+    use_case: StudentModuleUseCase = Depends(get_student_module_use_case),
+):
+    try:
+        return await use_case.get_available_validation_tests(current_user)
+    except Exception as exc:
+        raise _translate_error(exc)
+
+
+@router.post("/validation-tests/{quiz_id}/submit", response_model=ValidationTestSubmissionResponse)
+async def submit_validation_test(
+    quiz_id: int,
+    payload: QuizSubmissionRequest,
+    current_user: DomainUser = Depends(get_current_student_user),
+    use_case: StudentModuleUseCase = Depends(get_student_module_use_case),
+):
+    try:
+        return await use_case.submit_validation_test(current_user, quiz_id, payload.answers)
+    except Exception as exc:
+        raise _translate_error(exc)
+
+
+@router.get("/placement-test", response_model=PlacementTestResponse)
+async def get_placement_test(
+    current_user: DomainUser = Depends(get_current_student_user),
+    use_case: StudentModuleUseCase = Depends(get_student_module_use_case),
+):
+    try:
+        return await use_case.get_placement_test(current_user)
+    except Exception as exc:
+        raise _translate_error(exc)
+
+
+@router.post("/placement-test/submit", response_model=PlacementTestSubmissionResponse)
+async def submit_placement_test(
+    payload: PlacementTestSubmissionRequest,
+    current_user: DomainUser = Depends(get_current_student_user),
+    use_case: StudentModuleUseCase = Depends(get_student_module_use_case),
+):
+    try:
+        return await use_case.submit_placement_test(current_user, payload.answers)
+    except Exception as exc:
+        raise _translate_error(exc)

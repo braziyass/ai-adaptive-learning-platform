@@ -7,6 +7,9 @@ import type { AiGenerationRequest, LoginRequest, StudentFormValues } from "@/typ
 export const queryKeys = {
   adminStudents: ["admin", "students"] as const,
   adminTeachers: ["admin", "teachers"] as const,
+  adminCourses: ["admin", "courses"] as const,
+  adminChapters: (courseId: number | null) => ["admin", "courses", courseId, "chapters"] as const,
+  adminLessons: (chapterId: number | null) => ["admin", "chapters", chapterId, "lessons"] as const,
   aiPdfIngestion: ["ai", "pdf-ingestion"] as const,
   aiGeneration: ["ai", "generation"] as const,
   studentProfile: ["student", "profile"] as const,
@@ -16,6 +19,8 @@ export const queryKeys = {
   studentAvailableQuizzes: ["student", "available-quizzes"] as const,
   studentCompletedQuizzes: ["student", "completed-quizzes"] as const,
   studentValidationResults: ["student", "validation-results"] as const,
+  studentAvailableValidationTests: ["student", "available-validation-tests"] as const,
+  studentPlacementTest: ["student", "placement-test"] as const,
   teacherStudents: ["teacher", "students"] as const,
   teacherStatistics: ["teacher", "statistics"] as const,
 };
@@ -54,6 +59,26 @@ export function useAdminTeachersQuery() {
   return useQuery({ queryKey: queryKeys.adminTeachers, queryFn: adminApi.listTeachers });
 }
 
+export function useAdminCoursesQuery() {
+  return useQuery({ queryKey: queryKeys.adminCourses, queryFn: adminApi.listCourses });
+}
+
+export function useAdminChaptersQuery(courseId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.adminChapters(courseId),
+    queryFn: () => adminApi.listChapters(courseId as number),
+    enabled: courseId !== null,
+  });
+}
+
+export function useAdminLessonsQuery(chapterId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.adminLessons(chapterId),
+    queryFn: () => adminApi.listLessons(chapterId as number),
+    enabled: chapterId !== null,
+  });
+}
+
 export function useStudentProfileQuery() {
   return useQuery({ queryKey: queryKeys.studentProfile, queryFn: studentApi.profile });
 }
@@ -80,6 +105,45 @@ export function useStudentCompletedQuizzesQuery() {
 
 export function useStudentValidationResultsQuery() {
   return useQuery({ queryKey: queryKeys.studentValidationResults, queryFn: studentApi.validationResults });
+}
+
+export function useStudentAvailableValidationTestsQuery() {
+  return useQuery({ queryKey: queryKeys.studentAvailableValidationTests, queryFn: studentApi.availableValidationTests });
+}
+
+export function useSubmitValidationTestMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ quizId, payload }: { quizId: number; payload: Parameters<typeof studentApi.submitValidationTest>[1] }) =>
+      studentApi.submitValidationTest(quizId, payload),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.studentProfile }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.studentCurrentLevel }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.studentAvailableValidationTests }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.studentValidationResults }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.studentUnlockedLessons }),
+      ]);
+    },
+  });
+}
+
+export function useStudentPlacementTestQuery(enabled = true) {
+  return useQuery({ queryKey: queryKeys.studentPlacementTest, queryFn: studentApi.placementTest, enabled });
+}
+
+export function useSubmitPlacementTestMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: studentApi.submitPlacementTest,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.studentProfile }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.studentCurrentLevel }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.studentUnlockedLessons }),
+      ]);
+    },
+  });
 }
 
 export function useTeacherStudentsQuery() {
