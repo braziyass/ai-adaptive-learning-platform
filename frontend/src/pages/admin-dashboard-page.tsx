@@ -419,10 +419,6 @@ export function AdminDashboardPage() {
                   }
                 }
 
-                if (needsChapter && generationCourseId === null) {
-                  setGenerationError("Sélectionnez un cours (ou créez-en un nouveau) pour générer une leçon.");
-                  return;
-                }
                 if (needsLesson && generationLessonId === null) {
                   setGenerationError("Sélectionnez une leçon existante pour générer un quiz.");
                   return;
@@ -499,7 +495,7 @@ export function AdminDashboardPage() {
                       }}
                       className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
                     >
-                      <option value="">Sélectionner un cours...</option>
+                      <option value="">{needsChapter ? "+ Nouveau cours (ou choisir ci-dessous)" : "Sélectionner un cours..."}</option>
                       {coursesQuery.data?.map((course) => (
                         <option key={course.id} value={course.id}>{course.title} · {course.subject}</option>
                       ))}
@@ -512,7 +508,6 @@ export function AdminDashboardPage() {
                     <select
                       id="generation-chapter"
                       value={generationChapterId ?? ""}
-                      disabled={generationCourseId === null}
                       onChange={(event) => setGenerationChapterId(event.target.value ? Number(event.target.value) : null)}
                       className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 disabled:opacity-50"
                     >
@@ -521,6 +516,9 @@ export function AdminDashboardPage() {
                         <option key={chapter.id} value={chapter.id}>{chapter.title} (ordre {chapter.order})</option>
                       ))}
                     </select>
+                    {generationCourseId === null ? (
+                      <p className="text-xs text-slate-500">Aucun cours sélectionné : un nouveau cours et un nouveau chapitre seront créés.</p>
+                    ) : null}
                   </div>
                 ) : null}
                 {needsLesson ? (
