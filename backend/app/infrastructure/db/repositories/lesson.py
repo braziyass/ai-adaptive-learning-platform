@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.domain.entities.lesson import Lesson as DomainLesson
+from app.infrastructure.db.models import Chapter as ChapterModel
+from app.infrastructure.db.models import Course as CourseModel
 from app.infrastructure.db.models import Lesson as LessonModel
 from app.infrastructure.db.repositories.base import BaseRepository
 from app.infrastructure.db.repositories.errors import NotFoundError
@@ -31,6 +33,18 @@ class LessonRepositoryImpl(BaseRepository[LessonModel]):
 
     async def list_by_chapter(self, chapter_id: int) -> Sequence[DomainLesson]:
         stmt = select(LessonModel).where(LessonModel.chapter_id == chapter_id)
+        result = await self.session.execute(stmt)
+        orms = result.scalars().all()
+        return [DomainLesson(id=o.id, chapter_id=o.chapter_id, title=o.title, content=o.content) for o in orms]
+
+    async def list_all_for_organization(self, organization_id: int) -> Sequence[DomainLesson]:
+        stmt = (
+            select(LessonModel)
+            .join(ChapterModel, ChapterModel.id == LessonModel.chapter_id)
+            .join(CourseModel, CourseModel.id == ChapterModel.course_id)
+            .where(CourseModel.organization_id == organization_id)
+            .order_by(ChapterModel.order.asc(), LessonModel.id.asc())
+        )
         result = await self.session.execute(stmt)
         orms = result.scalars().all()
         return [DomainLesson(id=o.id, chapter_id=o.chapter_id, title=o.title, content=o.content) for o in orms]

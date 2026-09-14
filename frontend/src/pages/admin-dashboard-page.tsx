@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { FileUp, Loader2, PencilLine, Plus, Sparkles, Trash2, Wand2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { StatCard } from "@/components/common/stat-card";
 import {
   useAdminCourseLessonsQuery,
   useAdminCoursesQuery,
+  useAdminPlacementTestQuery,
   useAdminStudentsQuery,
   useAdminTeachersQuery,
   useCreateStudentMutation,
@@ -20,11 +21,12 @@ import {
   useDeleteStudentMutation,
   useDeleteTeacherMutation,
   useGenerateArtifactMutation,
+  useUpdatePlacementTestMutation,
   useUpdateStudentMutation,
   useUpdateTeacherMutation,
   useUploadPdfMutation,
 } from "@/lib/query-hooks";
-import type { GeneratedArtifactResponse, PdfIngestionResponse, StudentFormValues } from "@/types/api";
+import type { AdminPlacementTestQuestionInput, GeneratedArtifactResponse, PdfIngestionResponse, StudentFormValues } from "@/types/api";
 
 const emptyStudent: StudentFormValues = {
   first_name: "",
@@ -53,6 +55,8 @@ export function AdminDashboardPage() {
   const createTeacher = useCreateTeacherMutation();
   const updateTeacher = useUpdateTeacherMutation();
   const deleteTeacher = useDeleteTeacherMutation();
+  const placementTestQuery = useAdminPlacementTestQuery();
+  const updatePlacementTest = useUpdatePlacementTestMutation();
 
   const [studentForm, setStudentForm] = useState<StudentFormValues>(emptyStudent);
   const [teacherForm, setTeacherForm] = useState(emptyTeacher);
@@ -61,9 +65,9 @@ export function AdminDashboardPage() {
   const [selectedPdf, setSelectedPdf] = useState<File | null>(null);
   const [pdfIngestion, setPdfIngestion] = useState<PdfIngestionResponse | null>(null);
   const [pdfIngestionError, setPdfIngestionError] = useState<string | null>(null);
-  const [artifactType, setArtifactType] = useState<GeneratedArtifactResponse["artifact_type"]>("placement_test");
-  const [generationTitle, setGenerationTitle] = useState("Test de positionnement adaptatif");
-  const [generationSubject, setGenerationSubject] = useState("Anglais");
+  const [artifactType, setArtifactType] = useState<GeneratedArtifactResponse["artifact_type"]>("lesson");
+  const [generationTitle, setGenerationTitle] = useState("Nouvelle leçon");
+  const [generationSubject, setGenerationSubject] = useState("Mathématiques");
   const [generationLevel, setGenerationLevel] = useState("1");
   const [generationCourseId, setGenerationCourseId] = useState<number | null>(null);
   const [generationCourseTitle, setGenerationCourseTitle] = useState("");
@@ -81,6 +85,78 @@ export function AdminDashboardPage() {
   const needsCourse = artifactType === "lesson" || artifactType === "quiz";
   const needsLesson = artifactType === "quiz";
   const needsQuestionCount = artifactType === "quiz";
+
+  const [placementGenTitle, setPlacementGenTitle] = useState("Test de positionnement");
+  const [placementGenSubject, setPlacementGenSubject] = useState("Général");
+  const [placementGenCount, setPlacementGenCount] = useState("40");
+  const [placementGenError, setPlacementGenError] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editSubject, setEditSubject] = useState("");
+  const [editQuestions, setEditQuestions] = useState<AdminPlacementTestQuestionInput[]>([]);
+  const [loadedPlacementTestId, setLoadedPlacementTestId] = useState<number | null>(null);
+  const [placementSaveError, setPlacementSaveError] = useState<string | null>(null);
+  const [placementSaveSuccess, setPlacementSaveSuccess] = useState(false);
+
+  useEffect(() => {
+    if (placementTestQuery.data && placementTestQuery.data.placement_test_id !== loadedPlacementTestId) {
+      setEditTitle(placementTestQuery.data.title);
+      setEditSubject(placementTestQuery.data.subject);
+      setEditQuestions(
+        placementTestQuery.data.questions.map((q) => ({
+          question: q.question,
+          question_type: q.question_type,
+          options: q.options,
+          answer: q.answer,
+          explanation: q.explanation,
+        })),
+      );
+      setLoadedPlacementTestId(placementTestQuery.data.placement_test_id);
+    }
+  }, [placementTestQuery.data, loadedPlacementTestId]);
+
+  function updatePlacementQuestion(index: number, patch: Partial<AdminPlacementTestQuestionInput>) {
+    setEditQuestions((current) => current.map((question, i) => (i === index ? { ...question, ...patch } : question)));
+  }
+
+  function removePlacementQuestion(index: number) {
+    setEditQuestions((current) => current.filter((_, i) => i !== index));
+  }
+
+  function addPlacementQuestion() {
+    setEditQuestions((current) => [...current, { question: "", question_type: "multiple_choice", options: [], answer: "", explanation: "" }]);
+  }
+
+  async function handleGeneratePlacementTest(event: FormEvent) {
+    event.preventDefault();
+    setPlacementGenError(null);
+    try {
+      await generateArtifact.mutateAsync({
+        artifactType: "placement_test",
+        payload: {
+          title: placementGenTitle,
+          subject: placementGenSubject,
+          level: 1,
+          question_count: Number(placementGenCount) || 40,
+          locale: "fr",
+        },
+      });
+      setLoadedPlacementTestId(null);
+      await placementTestQuery.refetch();
+    } catch (error) {
+      setPlacementGenError(error instanceof Error ? error.message : "Impossible de générer le test de positionnement.");
+    }
+  }
+
+  async function handleSavePlacementTest() {
+    setPlacementSaveError(null);
+    setPlacementSaveSuccess(false);
+    try {
+      await updatePlacementTest.mutateAsync({ title: editTitle, subject: editSubject, questions: editQuestions });
+      setPlacementSaveSuccess(true);
+    } catch (error) {
+      setPlacementSaveError(error instanceof Error ? error.message : "Impossible d'enregistrer les modifications.");
+    }
+  }
 
   const studentCount = studentsQuery.data?.length ?? 0;
   const teacherCount = teachersQuery.data?.length ?? 0;
@@ -213,8 +289,14 @@ export function AdminDashboardPage() {
               <div className="space-y-2 md:col-span-2"><Label>E-mail</Label><Input type="email" value={studentForm.email} onChange={(event) => setStudentForm((current) => ({ ...current, email: event.target.value }))} /></div>
               <div className="space-y-2"><Label>Mot de passe</Label><Input type="password" value={studentForm.password} onChange={(event) => setStudentForm((current) => ({ ...current, password: event.target.value }))} /></div>
               <p className="md:col-span-2 text-xs text-slate-500">Utilisez au moins 8 caractères. Les nouveaux comptes étudiants utilisent un mot de passe temporaire tant que vous ne le remplacez pas.</p>
-              <div className="space-y-2"><Label>Niveau actuel</Label><Input type="number" min={1} value={studentForm.current_level} onChange={(event) => setStudentForm((current) => ({ ...current, current_level: Number(event.target.value) }))} /></div>
-              <div className="space-y-2"><Label>Score de positionnement</Label><Input type="number" min={0} value={studentForm.placement_score} onChange={(event) => setStudentForm((current) => ({ ...current, placement_score: Number(event.target.value) }))} /></div>
+              {editingStudentId ? (
+                <>
+                  <div className="space-y-2"><Label>Niveau actuel</Label><Input type="number" min={1} value={studentForm.current_level} onChange={(event) => setStudentForm((current) => ({ ...current, current_level: Number(event.target.value) }))} /></div>
+                  <div className="space-y-2"><Label>Score de positionnement</Label><Input type="number" min={0} value={studentForm.placement_score} onChange={(event) => setStudentForm((current) => ({ ...current, placement_score: Number(event.target.value) }))} /></div>
+                </>
+              ) : (
+                <p className="md:col-span-2 text-xs text-slate-500">Le niveau et le score de positionnement sont attribués automatiquement après le test de positionnement de l'étudiant.</p>
+              )}
               <div className="md:col-span-2 flex flex-wrap gap-3">
                 <Button type="submit"><Plus className="mr-2 h-4 w-4" />{editingStudentId ? "Mettre à jour l'étudiant" : "Créer l'étudiant"}</Button>
                 {editingStudentId ? <Button type="button" variant="outline" onClick={() => { setEditingStudentId(null); setStudentForm(emptyStudent); }}>Annuler</Button> : null}
@@ -466,11 +548,11 @@ export function AdminDashboardPage() {
                     }}
                     className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
                   >
-                    <option value="placement_test">Test de positionnement</option>
                     <option value="lesson">Leçon</option>
                     <option value="quiz">Quiz</option>
                     <option value="validation_test">Test de validation</option>
                   </select>
+                  <p className="text-xs text-slate-500">Le test de positionnement se gère séparément, dans la section « Test de positionnement » ci-dessous.</p>
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label htmlFor="generation-title">Titre</Label>
@@ -597,6 +679,126 @@ Pour une leçon, choisissez un cours existant ou créez-en un nouveau (le niveau
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Test de positionnement</CardTitle>
+          <CardDescription>
+            Un test unique, commun à tous les étudiants de votre établissement, généré à partir du contenu de tous vos cours.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <form className="grid gap-4 md:grid-cols-3" onSubmit={handleGeneratePlacementTest}>
+            <div className="space-y-2">
+              <Label htmlFor="placement-gen-title">Titre</Label>
+              <Input id="placement-gen-title" value={placementGenTitle} onChange={(event) => setPlacementGenTitle(event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="placement-gen-subject">Libellé</Label>
+              <Input id="placement-gen-subject" value={placementGenSubject} onChange={(event) => setPlacementGenSubject(event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="placement-gen-count">Nombre de questions</Label>
+              <Input id="placement-gen-count" type="number" min={1} max={100} value={placementGenCount} onChange={(event) => setPlacementGenCount(event.target.value)} />
+            </div>
+            <div className="md:col-span-3">
+              <Button type="submit" disabled={generateArtifact.isPending}>
+                {generateArtifact.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                {placementTestQuery.data ? "Regénérer le test (remplace l'actuel)" : "Générer le test"}
+              </Button>
+              <p className="mt-2 text-xs text-slate-500">
+                Regénérer remplace entièrement le test actif : tous les étudiants qui n'ont pas encore passé le test de positionnement verront le nouveau.
+              </p>
+            </div>
+          </form>
+
+          {placementGenError ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{placementGenError}</div> : null}
+
+          {placementTestQuery.isLoading ? <p className="text-sm text-slate-500">Chargement du test actif...</p> : null}
+          {!placementTestQuery.isLoading && !placementTestQuery.data ? (
+            <p className="text-sm text-slate-500">Aucun test de positionnement n'a encore été généré pour votre établissement.</p>
+          ) : null}
+
+          {placementTestQuery.data ? (
+            <div className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">Test actif</Badge>
+                  <span className="text-sm text-slate-600">{editQuestions.length} question(s)</span>
+                </div>
+                <Button type="button" onClick={handleSavePlacementTest} disabled={updatePlacementTest.isPending}>
+                  {updatePlacementTest.isPending ? "Enregistrement..." : "Enregistrer les modifications"}
+                </Button>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="placement-edit-title">Titre du test</Label>
+                  <Input id="placement-edit-title" value={editTitle} onChange={(event) => setEditTitle(event.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="placement-edit-subject">Libellé</Label>
+                  <Input id="placement-edit-subject" value={editSubject} onChange={(event) => setEditSubject(event.target.value)} />
+                </div>
+              </div>
+
+              {placementSaveError ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{placementSaveError}</div> : null}
+              {placementSaveSuccess ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">Modifications enregistrées.</div> : null}
+
+              <div className="max-h-[32rem] space-y-3 overflow-y-auto pr-1">
+                {editQuestions.map((question, index) => (
+                  <div key={index} className="space-y-2 rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Question {index + 1}</span>
+                      <Button type="button" variant="destructive" size="sm" onClick={() => removePlacementQuestion(index)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <Textarea
+                      value={question.question}
+                      onChange={(event) => updatePlacementQuestion(index, { question: event.target.value })}
+                      placeholder="Énoncé de la question"
+                    />
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <select
+                        value={question.question_type}
+                        onChange={(event) => updatePlacementQuestion(index, { question_type: event.target.value })}
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                      >
+                        <option value="multiple_choice">Choix multiple</option>
+                        <option value="true_false">Vrai / Faux</option>
+                        <option value="short_answer">Réponse courte</option>
+                      </select>
+                      <Input
+                        value={question.answer ?? ""}
+                        onChange={(event) => updatePlacementQuestion(index, { answer: event.target.value })}
+                        placeholder="Réponse correcte"
+                      />
+                    </div>
+                    {question.question_type === "multiple_choice" ? (
+                      <Input
+                        value={question.options.join(", ")}
+                        onChange={(event) => updatePlacementQuestion(index, { options: event.target.value.split(",").map((option) => option.trim()).filter(Boolean) })}
+                        placeholder="Options séparées par des virgules"
+                      />
+                    ) : null}
+                    <Textarea
+                      value={question.explanation ?? ""}
+                      onChange={(event) => updatePlacementQuestion(index, { explanation: event.target.value })}
+                      placeholder="Explication (optionnel)"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <Button type="button" variant="outline" onClick={addPlacementQuestion}>
+                <Plus className="mr-2 h-4 w-4" />
+                Ajouter une question
+              </Button>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -13,7 +13,7 @@ from app.application.services.admin import StudentAdminService, TeacherAdminServ
 from app.application.use_cases.admin import StudentAdminUseCase, TeacherAdminUseCase
 from app.domain.entities.enums import Role
 from app.infrastructure.auth.token_service import TokenService
-from app.infrastructure.db.repositories import get_user_repository
+from app.infrastructure.db.repositories import get_placement_test_repository, get_user_repository
 from app.domain.entities.user import User as DomainUser
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -88,6 +88,10 @@ def get_student_module_use_case(service: StudentModuleService = Depends(get_stud
 
 def get_audit_logger(db: AsyncSession = Depends(get_db)) -> AuditLogger:
     return AuditLogger(db)
+
+
+def get_placement_test_repo(db: AsyncSession = Depends(get_db)):
+    return get_placement_test_repository(db)
 
 
 def get_curriculum_browse_service(

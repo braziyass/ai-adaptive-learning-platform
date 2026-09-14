@@ -7,6 +7,8 @@ import type {
   AdminCourse,
   AdminCourseLesson,
   AdminLesson,
+  AdminPlacementTest,
+  AdminPlacementTestUpdateRequest,
   AdminStudent,
   AdminTeacher,
   AuthTokens,
@@ -142,6 +144,12 @@ export const adminApi = {
   },
   listCourseLessons(courseId: number) {
     return api.get<AdminCourseLesson[]>(`/admin/courses/${courseId}/lessons`).then((response: AxiosResponse<AdminCourseLesson[]>) => response.data);
+  },
+  getPlacementTest() {
+    return api.get<AdminPlacementTest>("/admin/placement-test").then((response: AxiosResponse<AdminPlacementTest>) => response.data);
+  },
+  updatePlacementTest(payload: AdminPlacementTestUpdateRequest) {
+    return api.put<AdminPlacementTest>("/admin/placement-test", payload).then((response: AxiosResponse<AdminPlacementTest>) => response.data);
   },
 };
 

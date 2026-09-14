@@ -182,6 +182,36 @@ export interface AdminCourseLesson {
   level: number;
 }
 
+export interface AdminPlacementTestQuestion {
+  question_id: number;
+  question: string;
+  question_type: string;
+  options: string[];
+  answer: string | null;
+  explanation: string | null;
+}
+
+export interface AdminPlacementTest {
+  placement_test_id: number;
+  title: string;
+  subject: string;
+  questions: AdminPlacementTestQuestion[];
+}
+
+export interface AdminPlacementTestQuestionInput {
+  question: string;
+  question_type: string;
+  options: string[];
+  answer: string | null;
+  explanation: string | null;
+}
+
+export interface AdminPlacementTestUpdateRequest {
+  title: string;
+  subject: string;
+  questions: AdminPlacementTestQuestionInput[];
+}
+
 export interface PdfIngestionResponse {
   source_document: string;
   chunk_count: number;

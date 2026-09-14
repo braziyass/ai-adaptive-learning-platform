@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -94,6 +94,49 @@ class PlacementTestRepositoryImpl:
                 )
             )
         self.session.add(orm)
+        await self.session.flush()
+        await self.session.refresh(orm, attribute_names=["questions"])
+        return _test_to_domain(orm)
+
+    async def replace_questions(
+        self,
+        placement_test_id: int,
+        organization_id: int,
+        title: str,
+        subject: str,
+        questions: Sequence[dict],
+    ) -> Optional[DomainPlacementTest]:
+        stmt = (
+            select(PlacementTestModel)
+            .where(PlacementTestModel.id == placement_test_id, PlacementTestModel.organization_id == organization_id)
+            .options(selectinload(PlacementTestModel.questions))
+        )
+        result = await self.session.execute(stmt)
+        orm = result.scalars().first()
+        if orm is None:
+            return None
+
+        orm.title = title
+        orm.subject = subject
+        await self.session.execute(delete(PlacementTestQuestionModel).where(PlacementTestQuestionModel.placement_test_id == orm.id))
+        orm.questions.clear()
+        for item in questions:
+            qtype = str(item.get("type") or "multiple_choice")
+            try:
+                qtype_enum = QuestionTypeEnum(qtype)
+            except ValueError:
+                qtype_enum = QuestionTypeEnum.multiple_choice
+            orm.questions.append(
+                PlacementTestQuestionModel(
+                    question=str(item.get("question", "")).strip(),
+                    type=qtype_enum,
+                    meta={
+                        "options": item.get("options", []),
+                        "answer": item.get("answer"),
+                        "explanation": item.get("explanation"),
+                    },
+                )
+            )
         await self.session.flush()
         await self.session.refresh(orm, attribute_names=["questions"])
         return _test_to_domain(orm)

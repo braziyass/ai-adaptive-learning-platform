@@ -24,7 +24,7 @@ from app.infrastructure.ai.generators.validation.validation_test_generator impor
 from app.infrastructure.ai.parser.json_parser import JSONParser
 from app.infrastructure.ai.prompts.prompt_builder import PromptBuilder
 from app.infrastructure.ai.retriever.retriever_service import RetrieverService
-from app.infrastructure.ai.types import GenerationRequest, SourceChunk
+from app.infrastructure.ai.types import GenerationRequest, RetrievedChunk, SourceChunk
 from app.infrastructure.ai.validators.validation_service import ValidationService
 from app.infrastructure.ai.vectorstore.vectorstore_service import VectorStoreService
 from app.infrastructure.db.repositories.generated_artifact_repository import SQLAlchemyGeneratedArtifactRepository
@@ -76,23 +76,26 @@ class GroqChatClient:
     def _fallback_response(self, prompt: str) -> str:
         title_match = re.search(r"^(?:Title|Titre):\s*(.+)$", prompt, flags=re.MULTILINE)
         title = title_match.group(1).strip() if title_match else "Contenu généré"
-        if "placement test" in prompt.lower():
+        if "positionnement" in prompt.lower():
+            count_match = re.search(r"(\d+) question", prompt.lower())
+            count = int(count_match.group(1)) if count_match else 1
             payload = {
                 "title": title,
-                "content": "Un test de positionnement local généré à partir du PDF ingéré.",
+                "content": "Un test de positionnement local généré à partir du contenu des cours.",
                 "questions": [
                     {
-                        "question": "Quelle est l'idée principale abordée dans le PDF ?",
+                        "question": f"Question de positionnement de secours {index + 1}.",
                         "type": "multiple_choice",
                         "options": ["Concepts", "Histoire", "Mathématiques", "Aucune des réponses"],
                         "answer": "Concepts",
                         "explanation": "Question de secours générée sans accès à Groq.",
                     }
+                    for index in range(count)
                 ],
                 "scoring_rules": {"correct": 1, "incorrect": 0},
                 "pass_mark": 50,
             }
-        elif "validation test" in prompt.lower():
+        elif "test de validation" in prompt.lower():
             payload = {
                 "title": title,
                 "content": "Un test de validation local généré à partir du PDF ingéré.",
@@ -336,7 +339,17 @@ class Worker:
         return artifact.id
 
     async def generate_placement_test(self, request: GenerationRequest) -> int:
-        content = self.placement_generator.generate(request)
+        lessons = await self.lesson_repository.list_all_for_organization(self.organization_id)
+        chunks = [
+            RetrievedChunk(
+                chunk_id=f"lesson-{lesson.id}",
+                text=f"{lesson.title}\n{lesson.content[:800]}",
+                source_id=f"lesson-{lesson.id}",
+                score=1.0,
+            )
+            for lesson in lessons
+        ]
+        content = self.placement_generator.generate(request, chunks=chunks or None)
         questions = content.payload.get("questions", [])
         if isinstance(questions, list) and questions:
             await self.placement_test_repository.deactivate_active(self.organization_id)

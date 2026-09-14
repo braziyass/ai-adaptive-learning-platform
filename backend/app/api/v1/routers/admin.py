@@ -7,10 +7,12 @@ from app.application.services.audit import AuditLogger
 from app.application.services.curriculum import CurriculumBrowseService, CurriculumNotFoundError
 from app.application.use_cases.admin import StudentAdminUseCase, TeacherAdminUseCase
 from app.domain.entities.user import User as DomainUser
+from app.infrastructure.db.repositories.placement_test import PlacementTestRepositoryImpl
 from app.presentation.dependencies import (
     get_audit_logger,
     get_curriculum_browse_service,
     get_current_admin,
+    get_placement_test_repo,
     get_student_admin_use_case,
     get_teacher_admin_use_case,
 )
@@ -20,6 +22,7 @@ from app.presentation.schemas.audit import AuditLogResponse
 from app.presentation.schemas.chapters import ChapterResponse
 from app.presentation.schemas.courses import CourseResponse
 from app.presentation.schemas.lessons import CourseLessonResponse, LessonResponse
+from app.presentation.schemas.placement_test import AdminPlacementTestResponse, AdminPlacementTestUpdateRequest
 
 router = APIRouter(prefix="/admin", dependencies=[Depends(get_current_admin)])
 
@@ -165,3 +168,87 @@ async def list_course_lessons(course_id: int, service: CurriculumBrowseService =
         return await service.list_lessons_for_course(course_id)
     except CurriculumNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.get("/placement-test", response_model=AdminPlacementTestResponse)
+async def get_placement_test(
+    current_user: DomainUser = Depends(get_current_admin),
+    repo: PlacementTestRepositoryImpl = Depends(get_placement_test_repo),
+):
+    test = await repo.get_active_for_organization(current_user.organization_id)
+    if test is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No placement test has been generated yet")
+    return AdminPlacementTestResponse(
+        placement_test_id=test.id,
+        title=test.title,
+        subject=test.subject,
+        questions=[
+            {
+                "question_id": q.id,
+                "question": q.question,
+                "question_type": q.type,
+                "options": list(q.metadata.get("options", [])) if isinstance(q.metadata, dict) else [],
+                "answer": q.metadata.get("answer") if isinstance(q.metadata, dict) else None,
+                "explanation": q.metadata.get("explanation") if isinstance(q.metadata, dict) else None,
+            }
+            for q in test.questions
+        ],
+    )
+
+
+@router.put("/placement-test", response_model=AdminPlacementTestResponse)
+async def update_placement_test(
+    payload: AdminPlacementTestUpdateRequest,
+    current_user: DomainUser = Depends(get_current_admin),
+    repo: PlacementTestRepositoryImpl = Depends(get_placement_test_repo),
+    audit: AuditLogger = Depends(get_audit_logger),
+):
+    existing = await repo.get_active_for_organization(current_user.organization_id)
+    if existing is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No placement test has been generated yet")
+
+    updated = await repo.replace_questions(
+        placement_test_id=existing.id,
+        organization_id=current_user.organization_id,
+        title=payload.title,
+        subject=payload.subject,
+        questions=[
+            {
+                "question": q.question,
+                "type": q.question_type,
+                "options": q.options,
+                "answer": q.answer,
+                "explanation": q.explanation,
+            }
+            for q in payload.questions
+        ],
+    )
+    if updated is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Placement test not found")
+
+    await audit.log(
+        organization_id=current_user.organization_id,
+        actor_user_id=current_user.id,
+        action="placement_test.edit",
+        resource_type="placement_test",
+        resource_id=updated.id,
+        metadata={"question_count": len(updated.questions)},
+    )
+    await repo.session.commit()
+
+    return AdminPlacementTestResponse(
+        placement_test_id=updated.id,
+        title=updated.title,
+        subject=updated.subject,
+        questions=[
+            {
+                "question_id": q.id,
+                "question": q.question,
+                "question_type": q.type,
+                "options": list(q.metadata.get("options", [])) if isinstance(q.metadata, dict) else [],
+                "answer": q.metadata.get("answer") if isinstance(q.metadata, dict) else None,
+                "explanation": q.metadata.get("explanation") if isinstance(q.metadata, dict) else None,
+            }
+            for q in updated.questions
+        ],
+    )

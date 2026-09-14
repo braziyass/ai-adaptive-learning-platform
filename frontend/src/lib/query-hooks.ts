@@ -11,6 +11,7 @@ export const queryKeys = {
   adminChapters: (courseId: number | null) => ["admin", "courses", courseId, "chapters"] as const,
   adminLessons: (chapterId: number | null) => ["admin", "chapters", chapterId, "lessons"] as const,
   adminCourseLessons: (courseId: number | null) => ["admin", "courses", courseId, "lessons"] as const,
+  adminPlacementTest: ["admin", "placement-test"] as const,
   aiPdfIngestion: ["ai", "pdf-ingestion"] as const,
   aiGeneration: ["ai", "generation"] as const,
   studentProfile: ["student", "profile"] as const,
@@ -85,6 +86,24 @@ export function useAdminCourseLessonsQuery(courseId: number | null) {
     queryKey: queryKeys.adminCourseLessons(courseId),
     queryFn: () => adminApi.listCourseLessons(courseId as number),
     enabled: courseId !== null,
+  });
+}
+
+export function useAdminPlacementTestQuery() {
+  return useQuery({
+    queryKey: queryKeys.adminPlacementTest,
+    queryFn: adminApi.getPlacementTest,
+    retry: false,
+  });
+}
+
+export function useUpdatePlacementTestMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: adminApi.updatePlacementTest,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.adminPlacementTest });
+    },
   });
 }
 
