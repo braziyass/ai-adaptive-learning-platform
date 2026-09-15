@@ -1,0 +1,30 @@
+# --- Python / backend ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.venv-fresh/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+backend/uvicorn.log
+
+# environment secrets (keep .env.example tracked)
+.env
+backend/.env
+*.env.local
+
+# AI pipeline runtime data (uploaded PDFs, embeddings cache — not source)
+backend/app/storage/pdfs/
+backend/app/storage/processed/
+backend/app/storage/cache/
+
+# --- Node / frontend ---
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
+# --- Editor / OS ---
+.vscode/
+.DS_Store
